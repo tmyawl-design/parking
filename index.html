@@ -31,7 +31,7 @@
     <main class="flex-1 p-4 pb-32 overflow-y-auto">
         
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">正在連線台中交通網，下載即時車位資訊...</p>
+            <p id="status-text" class="text-gray-600 font-medium">正在連線台中交通網...</p>
             <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
         </div>
 
@@ -48,19 +48,20 @@
     </div>
 
     <script>
-let isRecording = false;
-let recognition = null;
-let allParkingSpots = []; // 存放所有即時與預設資料
+        let isRecording = false;
+        let recognition = null;
+        let allParkingSpots = []; 
 
-// 網頁載入完成後，立刻啟動
-window.addEventListener('DOMContentLoaded', () => {
-    fetchTaichungParkingData();
-});
-// 串接台中市政府 Open Data API（免代理、官方 CORS 放行終極版）
+        // 網頁載入完成後自動執行
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchTaichungParkingData();
+        });
+
+        // 串接台中市政府 Open Data API（免代理、官方放行跨域通道版）
         async function fetchTaichungParkingData() {
             const statusText = document.getElementById('status-text');
             
-            // 【預設快取】確保一開網頁就有東西看，體驗不中斷
+            // 預設核心資料（保證一秒開畫面，絕不卡死）
             allParkingSpots = [
                 { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 125, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
                 { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 50, AVAILABLE: 42, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
@@ -69,22 +70,20 @@ window.addEventListener('DOMContentLoaded', () => {
                 { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 120, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 }
             ];
             renderParkingList(allParkingSpots);
+            statusText.innerText = "正在實時同步台中交通網車位...";
 
-            // 🚀 關鍵改變：直接呼叫台中市政府交通局「已放行網頁跨域」的即時車位 API 網址
+            // 直接連線台中市政府專門開放給網頁端使用的免跨域通道
             const apiUrl = "https://datacenter.taichung.gov.tw/swagger/OpenData/ea163e00-264d-444a-9dbd-0210e3046777"; 
 
             try {
-                // 不透過任何中間代理，直接對決政府伺服器
                 const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error('政府伺服器回應異常');
                 
                 const realData = await response.json();
-                
-                // 有些政府 API 回傳格式會包在 data 欄位裡，在此做格式相容檢查
                 let parkingData = Array.isArray(realData) ? realData : (realData.data || []);
 
                 if (parkingData.length > 0) {
-                    // 修正欄位對齊：精簡版 API 的欄位名稱對應轉換
+                    // 將精簡版 API 的變數名稱格式化為大寫欄位
                     allParkingSpots = parkingData.map(spot => ({
                         POSITION: spot.parkingName || spot.POSITION || "公有停車場",
                         ADDRESS: spot.address || spot.ADDRESS || "台中市",
@@ -94,18 +93,157 @@ window.addEventListener('DOMContentLoaded', () => {
                         LONGITUDE: spot.longitude || spot.LONGITUDE
                     }));
 
-                    statusText.innerText = `🟢 同步成功！已實時連線台中交通網，共載入 ${allParkingSpots.length} 個車位資料。`;
+                    statusText.innerText = `🟢 同步成功！已連線台中交通網，共載入 ${allParkingSpots.length} 個最新車位資料。`;
                     
-                    // 如果使用者還在發呆沒搜尋，幫他重新整理前 8 筆真實車位
+                    // 刷新首頁前 8 筆真實數據
                     const resultText = document.getElementById('result-text').innerText;
                     if (resultText.includes("請說出目的地") || resultText === "") {
                         renderParkingList(allParkingSpots.slice(0, 8));
                     }
                 }
             } catch (error) {
-                console.log("直接連線失敗，改採穩定快取模式:", error);
-                statusText.innerText = "🟡 無法取得即時連線，目前採用核心快取車位模式。";
+                console.log("即時同步略過，改採快取模式:", error);
+                statusText.innerText = "🟡 無法即時連線，目前採用核心快取車位模式。";
             }
+        }
+
+        // 將資料渲染至網頁
+        function renderParkingList(spots) {
+            const listContainer = document.getElementById('parking-list');
+            listContainer.innerHTML = ""; 
+
+            if (!spots || spots.length === 0) {
+                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場 😢</div>`;
+                return;
+            }
+
+            spots.forEach(spot => {
+                const name = spot.POSITION || "公有停車場";
+                const address = spot.ADDRESS || "台中市";
+                const totalSpaces = parseInt(spot.TOTAL || 0);
+                const leftSpaces = parseInt(spot.AVAILABLE || 0); 
+                const lat = spot.LATITUDE;
+                const lng = spot.LONGITUDE;
+                
+                let countColor = "text-green-600";
+                let bgColor = "border-gray-200";
+                if (leftSpaces <= 0) {
+                    countColor = "text-red-500";
+                    bgColor = "bg-red-50 border-red-100";
+                } else if (leftSpaces < 5) {
+                    countColor = "text-yellow-600";
+                }
+
+                const cardHtml = `
+                    <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center">
+                        <div class="flex-1 pr-2">
+                            <h3 class="font-bold text-gray-800 text-base">${name}</h3>
+                            <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${address}</p>
+                            <div class="flex gap-2 mt-2">
+                                <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${totalSpaces}</span>
+                            </div>
+                        </div>
+                        <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
+                            <div class="text-[11px] text-gray-400">剩餘車位</div>
+                            <div class="text-2xl font-black ${countColor}">${leftSpaces}</div>
+                            <button onclick="navigate(${lat}, ${lng})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
+                                <i class="fa-solid fa-location-arrow"></i> 導航
+                            </button>
+                        </div>
+                    </div>
+                `;
+                listContainer.innerHTML += cardHtml;
+            });
+        }
+
+        // 語音搜尋過濾
+        function searchParkingSpots(keyword) {
+            if (!allParkingSpots || allParkingSpots.length === 0) return;
+
+            const filtered = allParkingSpots.filter(spot => {
+                const pName = spot.POSITION || "";
+                const pAddr = spot.ADDRESS || "";
+                return pName.includes(keyword) || pAddr.includes(keyword);
+            });
+
+            renderParkingList(filtered);
+        }
+
+        // 語音辨識核心
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("目前瀏覽器不支援語音辨識，請使用 Android Chrome 開啟！");
+                return null;
+            }
+
+            const rec = new SpeechRecognition();
+            rec.lang = 'zh-TW';
+            rec.continuous = false;
+            rec.interimResults = true;
+
+            rec.onstart = () => { console.log("錄音中..."); };
+
+            rec.onresult = (event) => {
+                const resultText = document.getElementById('result-text');
+                let transcript = "";
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
+                }
+                resultText.classList.remove('hidden');
+                resultText.innerText = `「 ${transcript} 」`;
+            };
+
+            rec.onend = () => {
+                const resultText = document.getElementById('result-text').innerText;
+                const queryLocation = resultText.replace(/[「」\s]/g, '');
+                if (queryLocation && queryLocation !== "請說出目的地..." && queryLocation !== "正在辨識中...") {
+                    document.getElementById('status-text').innerText = `已幫您搜尋「${queryLocation}」附近的即時車位：`;
+                    searchParkingSpots(queryLocation); 
+                }
+                stopMicUI();
+            };
+
+            rec.onerror = () => { stopMicUI(); };
+            return rec;
+        }
+
+        function toggleVoiceSearch() {
+            if (!recognition) recognition = initSpeechRecognition();
+            if (!recognition) return;
+
+            if (!isRecording) {
+                try { recognition.start(); startMicUI(); } catch (e) {}
+            } else {
+                recognition.stop(); stopMicUI();
+            }
+        }
+
+        function startMicUI() {
+            isRecording = true;
+            document.getElementById('mic-btn').classList.replace('bg-blue-600', 'bg-red-500');
+            document.getElementById('mic-btn').classList.add('recording-active');
+            document.getElementById('mic-icon').classList.replace('fa-microphone', 'fa-stop');
+            document.getElementById('mic-tip').innerText = "說完請再按一次，或靜止說話自動辨識";
+            document.getElementById('status-text').innerText = "正在聆聽中...";
+        }
+
+        function stopMicUI() {
+            isRecording = false;
+            document.getElementById('mic-btn').classList.replace('bg-red-500', 'bg-blue-600');
+            document.getElementById('mic-btn').classList.remove('recording-active');
+            document.getElementById('mic-icon').classList.replace('fa-stop', 'fa-microphone');
+            document.getElementById('mic-tip').innerText = "按我開始語音搜尋";
+        }
+
+        // 全相容 Google Maps 喚醒網址
+        function navigate(lat, lng) {
+            if (!lat || !lng) {
+                alert("此停車場暫無定位資料");
+                return;
+            }
+            const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            window.open(googleMapsUrl, '_blank');
         }
     </script>
 </body>
