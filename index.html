@@ -30,8 +30,20 @@
 
     <main class="flex-1 p-4 pb-32 overflow-y-auto">
         
+        <div class="bg-white rounded-xl p-3 shadow-sm mb-4 border border-gray-200">
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
+                    <input type="text" id="search-input" placeholder="打字輸入地名（如：馬卡龍、逢甲）..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                </div>
+                <button onclick="handleTextSearch()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg text-sm flex items-center gap-1.5 transition-all shadow-sm shrink-0">
+                    搜尋
+                </button>
+            </div>
+        </div>
+
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">智慧停車系統已就緒！請按下方麥克風開始搜尋。</p>
+            <p id="status-text" class="text-gray-600 font-medium">智慧停車系統已就緒！請按下方麥克風或在上方打字搜尋。</p>
             <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
         </div>
 
@@ -55,11 +67,25 @@
         // 網頁載入完成後自動執行
         window.addEventListener('DOMContentLoaded', () => {
             initParkingData();
+            
+            // 綁定鍵盤 Enter 鍵，打字完按 Enter 也能直接搜尋
+            document.getElementById('search-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleTextSearch();
+                }
+            });
         });
 
-        // 內建大資料庫：收錄全台中熱門區共 25 個核心停車場
+        // 資料庫：收錄全台中熱門區核心停車場（新增馬卡龍公園周邊）
         function initParkingData() {
             allParkingSpots = [
+                // 💡 太平區（新增熱門馬卡龍公園點位）
+                { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
+                { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
+                { POSITION: "太平區新平立體停車場", ADDRESS: "太平區樹德路", TOTAL: 110, AVAILABLE: 47, LATITUDE: 24.1552, LONGITUDE: 120.7138 },
+                { POSITION: "太平運動場平面停車場", ADDRESS: "太平區中興東路", TOTAL: 60, AVAILABLE: 22, LATITUDE: 24.1285, LONGITUDE: 120.7194 },
+                { POSITION: "太平坪林森林公園停車場", ADDRESS: "太平區中山路二段", TOTAL: 130, AVAILABLE: 75, LATITUDE: 24.1435, LONGITUDE: 120.7312 },
+
                 // 中區、西區
                 { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
                 { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
@@ -87,19 +113,25 @@
                 { POSITION: "大里軟體園區停車場", ADDRESS: "大里區科技路1號", TOTAL: 250, AVAILABLE: 142, LATITUDE: 24.0952, LONGITUDE: 120.6958 },
                 { POSITION: "大里國光路大潤發停車場", ADDRESS: "大里區國光路二段", TOTAL: 150, AVAILABLE: 60, LATITUDE: 24.1165, LONGITUDE: 120.6841 },
 
-                // 太平區
-                { POSITION: "太平區新平立體停車場", ADDRESS: "太平區樹德路", TOTAL: 110, AVAILABLE: 47, LATITUDE: 24.1552, LONGITUDE: 120.7138 },
-                { POSITION: "太平運動場平面停車場", ADDRESS: "太平區中興東路", TOTAL: 60, AVAILABLE: 22, LATITUDE: 24.1285, LONGITUDE: 120.7194 },
-                { POSITION: "太平坪林森林公園停車場", ADDRESS: "太平區中山路二段", TOTAL: 130, AVAILABLE: 75, LATITUDE: 24.1435, LONGITUDE: 120.7312 },
-
                 // 北屯區
                 { POSITION: "北屯總站停車場", ADDRESS: "北屯區敦富路", TOTAL: 200, AVAILABLE: 95, LATITUDE: 24.1834, LONGITUDE: 120.7061 },
                 { POSITION: "民俗公園地下停車場", ADDRESS: "北屯區旅順路二段73號", TOTAL: 160, AVAILABLE: 51, LATITUDE: 24.1711, LONGITUDE: 120.6888 },
                 { POSITION: "大坑經補庫停車場", ADDRESS: "北屯區東山路一段", TOTAL: 240, AVAILABLE: 130, LATITUDE: 24.1805, LONGITUDE: 120.7325 }
             ];
 
-            document.getElementById('status-text').innerText = "🟢 全台中熱門行政區資料庫已就緒！您可以對著手機說「大里」、「太平」或「火車站」來測試。";
+            document.getElementById('status-text').innerText = "🟢 全功能資料庫就緒！您可以用語音，也可以在上方框框打字搜尋。";
             renderParkingList(allParkingSpots.slice(0, 8));
+        }
+
+        // 🚀 新增功能：處理打字搜尋按鈕點擊
+        function handleTextSearch() {
+            const inputVal = document.getElementById('search-input').value;
+            if (!inputVal.trim()) {
+                alert("請先輸入要搜尋的地名或行政區喔！");
+                return;
+            }
+            document.getElementById('status-text').innerText = `已幫您打字搜尋「${inputVal}」附近的停車場：`;
+            searchParkingSpots(inputVal);
         }
 
         // 將資料渲染至網頁
@@ -108,7 +140,7 @@
             listContainer.innerHTML = ""; 
 
             if (!spots || spots.length === 0) {
-                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，請試試其他行政區名稱 😢</div>`;
+                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，換個名稱打字試試吧 😢</div>`;
                 return;
             }
 
@@ -151,7 +183,7 @@
             });
         }
 
-        // 語音關鍵字比對過濾
+        // 關鍵字比對過濾（不論打字還是語音，共用此段進行模糊比對）
         function searchParkingSpots(keyword) {
             if (!allParkingSpots || allParkingSpots.length === 0) return;
             const cleanKey = keyword.trim();
@@ -190,7 +222,7 @@
                 const resultText = document.getElementById('result-text').innerText;
                 const queryLocation = resultText.replace(/[「」\s]/g, '');
                 if (queryLocation && queryLocation !== "請說出目的地..." && queryLocation !== "正在辨識中...") {
-                    document.getElementById('status-text').innerText = `已幫您搜尋「${queryLocation}」附近的即時車位：`;
+                    document.getElementById('status-text').innerText = `已幫您語音搜尋「${queryLocation}」附近的停車場：`;
                     searchParkingSpots(queryLocation); 
                 }
                 stopMicUI();
@@ -224,7 +256,7 @@
             document.getElementById('mic-tip').innerText = "按我開始語音搜尋";
         }
 
-        // 萬用 Google Maps 導航跳轉
+        // 全相容 Google Maps 導航跳轉
         function navigate(lat, lng) {
             if (!lat || !lng) {
                 alert("此停車場暫無定位資料");
