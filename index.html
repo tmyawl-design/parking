@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* 讓語音波浪有呼吸燈效果 */
         @keyframes pulse {
             0%, 100% { transform: scale(1); opacity: 0.6; }
             50% { transform: scale(1.1); opacity: 1; }
@@ -32,191 +31,202 @@
     <main class="flex-1 p-4 pb-32 overflow-y-auto">
         
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">點擊下方麥克風，說出「台中火車站」</p>
+            <p id="status-text" class="text-gray-600 font-medium">正在連線台中交通網，下載即時車位資訊...</p>
             <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
         </div>
 
         <div class="space-y-3" id="parking-list">
-            
-            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200 flex justify-between items-center">
-                <div>
-                    <h3 class="font-bold text-gray-800 text-lg">府後街地下停車場</h3>
-                    <p class="text-gray-500 text-sm mt-0.5"><i class="fa-solid fa-location-dot text-red-500"></i> 西區府後街1-1號</p>
-                    <div class="flex gap-2 mt-2">
-                        <span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-medium">每小時 30 元</span>
-                    </div>
-                </div>
-                <div class="text-right flex flex-col items-end gap-2">
-                    <div class="text-sm text-gray-500">剩餘車位</div>
-                    <div class="text-3xl font-extrabold text-green-600">42</div>
-                    <button onclick="navigate(24.1432, 120.6819)" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-sm flex items-center gap-1 transition-all shadow-sm">
-                        <i class="fa-solid fa-navigation"></i> 導航
-                    </button>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200 flex justify-between items-center">
-                <div>
-                    <h3 class="font-bold text-gray-800 text-lg">大業初中地下停車場</h3>
-                    <p class="text-gray-500 text-sm mt-0.5"><i class="fa-solid fa-location-dot text-red-500"></i> 南屯區大業路100號</p>
-                    <div class="flex gap-2 mt-2">
-                        <span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full font-medium">每小時 20 元</span>
-                    </div>
-                </div>
-                <div class="text-right flex flex-col items-end gap-2">
-                    <div class="text-sm text-gray-500">剩餘車位</div>
-                    <div class="text-3xl font-extrabold text-yellow-600">5</div>
-                    <button onclick="navigate(24.1534, 120.6512)" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-sm flex items-center gap-1 transition-all shadow-sm">
-                        <i class="fa-solid fa-navigation"></i> 導航
-                    </button>
-                </div>
-            </div>
-
+            <div class="text-center text-gray-500 py-8">資料載入中，請稍候...</div>
         </div>
     </main>
 
     <div class="fixed bottom-6 left-0 right-0 flex flex-col items-center justify-center z-50 pointer-events-none">
         <span id="mic-tip" class="bg-gray-800 text-white text-xs px-3 py-1 rounded-full shadow-md mb-2 pointer-events-auto font-medium">按我開始語音搜尋</span>
-        
         <button id="mic-btn" onclick="toggleVoiceSearch()" class="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 focus:outline-none">
             <i id="mic-icon" class="fa-solid fa-microphone text-2xl"></i>
         </button>
     </div>
 
     <script>
-let isRecording = false;
-let recognition = null;
+        let isRecording = false;
+        let recognition = null;
+        let allParkingSpots = []; // 存放原始即時資料
 
-// 1. 初始化語音辨識物件
-function initSpeechRecognition() {
-    // 檢查瀏覽器是否支援（相容 Android Chrome / iOS Safari）
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-        alert("很抱歉，您的瀏覽器不支援 Web Speech API。請使用 Android Chrome 瀏覽器測試！");
-        return null;
-    }
+        // 網頁載入完成後，立刻向台中市政府抓資料
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchTaichungParkingData();
+        });
 
-    const rec = new SpeechRecognition();
-    rec.lang = 'zh-TW';          // 設定辨識語言：台灣中文
-    rec.continuous = false;     // 單次辨識，說完一段話自動結束
-    rec.interimResults = true;  // 即時顯示辨識中的字詞（體驗更好）
-
-    // 當開始錄音時
-    rec.onstart = () => {
-        console.log("語音辨識開始...");
-    };
-
-    // 當有辨識結果時（這段是核心！）
-    rec.onresult = (event) => {
-        const resultText = document.getElementById('result-text');
-        // 取得目前辨識到的文字
-        let transcript = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
-        }
-        
-        // 即時更新到 UI 畫面上
-        resultText.classList.remove('hidden');
-        resultText.innerText = `「 ${transcript} 」`;
-    };
-
-    // 當語音辨識因為「使用者說完話」或「出錯」而結束時
-    rec.onend = () => {
-        const resultText = document.getElementById('result-text').innerText;
-        // 把前後引號拿掉，取得乾淨的關鍵字
-        const queryLocation = resultText.replace(/[「」\s]/g, '');
-        
-        // 如果有成功辨識到文字，且目前狀態還是錄音中，就執行搜尋
-        if (queryLocation && queryLocation !== "請說出目的地..." && queryLocation !== "正在辨識中...") {
-            document.getElementById('status-text').innerText = `語音辨識完成！正在搜尋「${queryLocation}」附近的車位...`;
+        // 串接台中市政府 Open Data API
+        async function fetchTaichungParkingData() {
+            const statusText = document.getElementById('status-text');
             
-            // 【下一步預留】這裡之後會放入呼叫台中市 API 的 function
-            // searchParkingSpots(queryLocation); 
+            // 使用公開的 CORS 代理，解決網頁直接抓取政府 API 會產生的跨網域封鎖問題
+            const proxyUrl = "https://api.allorigins.win/raw?url=";
+            const apiUrl = "https://datacenter.taichung.gov.tw/swagger/OpenData/72c08233-de17-43cf-87eb-f9e0b8e76c12"; 
+
+            try {
+                const response = await fetch(proxyUrl + encodeURIComponent(apiUrl));
+                if (!response.ok) throw new Error('網路回應不成功');
+                
+                allParkingSpots = await response.json();
+                
+                statusText.innerText = `連線成功！已即時同步台中市 ${allParkingSpots.length} 個公有停車場。`;
+                // 預先顯示前 8 筆資料，讓畫面不空白
+                renderParkingList(allParkingSpots.slice(0, 8));
+            } catch (error) {
+                console.error("API 抓取失敗:", error);
+                statusText.innerText = "無法即時連線台中交通網，請確認網路連線。";
+            }
         }
-        
-        // 重設按鈕 UI 狀態
-        stopMicUI();
-    };
 
-    // 處理錯誤
-    rec.onerror = (event) => {
-        console.error("語音辨識錯誤:", event.error);
-        if (event.error === 'not-allowed') {
-            alert("請允許網頁啟用麥克風權限，否則無法使用語音搜尋功能喔！");
+        // 將即時資料渲染至網頁
+        function renderParkingList(spots) {
+            const listContainer = document.getElementById('parking-list');
+            listContainer.innerHTML = ""; 
+
+            if (!spots || spots.length === 0) {
+                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，請試試其他關鍵字 😢</div>`;
+                return;
+            }
+
+            spots.forEach(spot => {
+                // 對接台中市政府 Open Data 的官方標準欄位
+                const name = spot.POSITION || "公有停車場";
+                const address = spot.ADDRESS || "台中市";
+                const totalSpaces = parseInt(spot.TOTAL || 0);
+                const leftSpaces = parseInt(spot.AVAILABLE || 0); // 剩餘車位
+                const lat = spot.LATITUDE;
+                const lng = spot.LONGITUDE;
+                
+                // 根據剩餘車位動態變色
+                let countColor = "text-green-600";
+                let bgColor = "border-gray-200";
+                if (leftSpaces <= 0) {
+                    countColor = "text-red-500";
+                    bgColor = "bg-red-50 border-red-100";
+                } else if (leftSpaces < 5) {
+                    countColor = "text-yellow-600";
+                }
+
+                const cardHtml = `
+                    <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center">
+                        <div class="flex-1 pr-2">
+                            <h3 class="font-bold text-gray-800 text-base">${name}</h3>
+                            <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${address}</p>
+                            <div class="flex gap-2 mt-2">
+                                <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${totalSpaces}</span>
+                            </div>
+                        </div>
+                        <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
+                            <div class="text-[11px] text-gray-400">剩餘車位</div>
+                            <div class="text-2xl font-black ${countColor}">${leftSpaces}</div>
+                            <button onclick="navigate(${lat}, ${lng}, '${name}')" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
+                                <i class="fa-solid fa-location-arrow"></i> 導航
+                            </button>
+                        </div>
+                    </div>
+                `;
+                listContainer.innerHTML += cardHtml;
+            });
         }
-        stopMicUI();
-    };
 
-    return rec;
-}
+        // 語音搜尋過濾邏輯
+        function searchParkingSpots(keyword) {
+            if (!allParkingSpots || allParkingSpots.length === 0) return;
 
-// 2. 控制麥克風按鈕點擊
-function toggleVoiceSearch() {
-    // 確保 recognition 物件已建立
-    if (!recognition) {
-        recognition = initSpeechRecognition();
-    }
-    if (!recognition) return; // 如果瀏覽器不支援就直接中斷
+            // 模糊比對停車場名稱 (POSITION) 或地址 (ADDRESS)
+            const filtered = allParkingSpots.filter(spot => {
+                const pName = spot.POSITION || "";
+                const pAddr = spot.ADDRESS || "";
+                return pName.includes(keyword) || pAddr.includes(keyword);
+            });
 
-    if (!isRecording) {
-        // 啟動錄音
-        try {
-            recognition.start();
-            startMicUI();
-        } catch (e) {
-            console.log("辨識啟動失敗:", e);
+            // 渲染過濾後的結果
+            renderParkingList(filtered);
         }
-    } else {
-        // 手動停止錄音
-        recognition.stop();
-        stopMicUI();
-    }
-}
 
-// 3. UI 狀態切換：切換至「錄音中」視覺
-function startMicUI() {
-    isRecording = true;
-    const micBtn = document.getElementById('mic-btn');
-    const micIcon = document.getElementById('mic-icon');
-    const micTip = document.getElementById('mic-tip');
-    const statusText = document.getElementById('status-text');
-    const resultText = document.getElementById('result-text');
+        // 語音辨識核心
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("目前瀏覽器不支援語音辨識，請使用 Android Chrome 開啟網址！");
+                return null;
+            }
 
-    micBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-    micBtn.classList.add('bg-red-500', 'hover:bg-red-600', 'recording-active');
-    micIcon.classList.remove('fa-microphone');
-    micIcon.classList.add('fa-stop');
-    micTip.innerText = "說完請再按一次，或靜止說話自動辨識";
-    statusText.innerText = "正在聆聽中...";
-    resultText.classList.remove('hidden');
-    resultText.innerText = "「 請說出目的地... 」";
-}
+            const rec = new SpeechRecognition();
+            rec.lang = 'zh-TW';
+            rec.continuous = false;
+            rec.interimResults = true;
 
-// 4. UI 狀態切換：恢復「待機」視覺
-function stopMicUI() {
-    isRecording = false;
-    const micBtn = document.getElementById('mic-btn');
-    const micIcon = document.getElementById('mic-icon');
-    const micTip = document.getElementById('mic-tip');
+            rec.onstart = () => { console.log("語音開始..."); };
 
-    if (micBtn) {
-        micBtn.classList.remove('bg-red-500', 'hover:bg-red-600', 'recording-active');
-        micBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
-    }
-    if (micIcon) {
-        micIcon.classList.remove('fa-stop');
-        micIcon.classList.add('fa-microphone');
-    }
-    if (micTip) {
-        micTip.innerText = "按我開始語音搜尋";
-    }
-}
+            rec.onresult = (event) => {
+                const resultText = document.getElementById('result-text');
+                let transcript = "";
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
+                }
+                resultText.classList.remove('hidden');
+                resultText.innerText = `「 ${transcript} 」`;
+            };
 
-// 5. 導航跳轉 Google Map App 函數
-function navigate(lat, lng) {
-    const url = `geo:${lat},${lng}?q=${lat},${lng}(目標停車場)`;
-    window.location.href = url;
-}    </script>
+            rec.onend = () => {
+                const resultText = document.getElementById('result-text').innerText;
+                const queryLocation = resultText.replace(/[「」\s]/g, '');
+                if (queryLocation && queryLocation !== "請說出目的地..." && queryLocation !== "正在辨識中...") {
+                    document.getElementById('status-text').innerText = `已幫您搜尋「${queryLocation}」附近的即時車位：`;
+                    searchParkingSpots(queryLocation); 
+                }
+                stopMicUI();
+            };
+
+            rec.onerror = (event) => {
+                console.error(event.error);
+                stopMicUI();
+            };
+
+            return rec;
+        }
+
+        function toggleVoiceSearch() {
+            if (!recognition) recognition = initSpeechRecognition();
+            if (!recognition) return;
+
+            if (!isRecording) {
+                try { recognition.start(); startMicUI(); } catch (e) {}
+            } else {
+                recognition.stop(); stopMicUI();
+            }
+        }
+
+        function startMicUI() {
+            isRecording = true;
+            document.getElementById('mic-btn').classList.replace('bg-blue-600', 'bg-red-500');
+            document.getElementById('mic-btn').classList.add('recording-active');
+            document.getElementById('mic-icon').classList.replace('fa-microphone', 'fa-stop');
+            document.getElementById('mic-tip').innerText = "說完請再按一次，或靜止說話自動辨識";
+            document.getElementById('status-text').innerText = "正在聆聽中...";
+        }
+
+        function stopMicUI() {
+            isRecording = false;
+            document.getElementById('mic-btn').classList.replace('bg-red-500', 'bg-blue-600');
+            document.getElementById('mic-btn').classList.remove('recording-active');
+            document.getElementById('mic-icon').classList.replace('fa-stop', 'fa-microphone');
+            document.getElementById('mic-tip').innerText = "按我開始語音搜尋";
+        }
+
+        // 🚀 【關鍵修正】萬用 Google Maps 跳轉跳轉代碼
+        function navigate(lat, lng, name) {
+            if (!lat || !lng) {
+                alert("此停車場暫無定位資料");
+                return;
+            }
+            // 使用 Google Maps 官方導航網址格式，Android 系統會完美攔截並強制喚醒 Google Maps App
+            const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            window.open(googleMapsUrl, '_blank');
+        }
+    </script>
 </body>
 </html>
