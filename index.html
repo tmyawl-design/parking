@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ㄆ<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -56,28 +56,42 @@
         window.addEventListener('DOMContentLoaded', () => {
             fetchTaichungParkingData();
         });
-
-        // 串接台中市政府 Open Data API
+// 串接台中市政府 Open Data API（升級版：改用 Cloudflare 穩定代理）
         async function fetchTaichungParkingData() {
             const statusText = document.getElementById('status-text');
             
-            // 使用公開的 CORS 代理，解決網頁直接抓取政府 API 會產生的跨網域封鎖問題
-            const proxyUrl = "https://api.allorigins.win/raw?url=";
+            // 替換為免驗證、速度更快的 Cloudflare 代理網址，徹底解決「載入中」卡死問題
+            const proxyUrl = "https://corsproxy.io/?";
             const apiUrl = "https://datacenter.taichung.gov.tw/swagger/OpenData/72c08233-de17-43cf-87eb-f9e0b8e76c12"; 
 
             try {
+                // 將兩者網址相加進行 fetch
                 const response = await fetch(proxyUrl + encodeURIComponent(apiUrl));
                 if (!response.ok) throw new Error('網路回應不成功');
                 
                 allParkingSpots = await response.json();
                 
-                statusText.innerText = `連線成功！已即時同步台中市 ${allParkingSpots.length} 個公有停車場。`;
-                // 預先顯示前 8 筆資料，讓畫面不空白
-                renderParkingList(allParkingSpots.slice(0, 8));
+                // 檢查抓到的資料是否為陣列
+                if (Array.isArray(allParkingSpots)) {
+                    statusText.innerText = `連線成功！已即時同步台中市 ${allParkingSpots.length} 個公有停車場。`;
+                    // 預先顯示前 8 筆資料，讓畫面不空白
+                    renderParkingList(allParkingSpots.slice(0, 8));
+                } else {
+                    throw new Error('資料格式不正確');
+                }
             } catch (error) {
                 console.error("API 抓取失敗:", error);
-                statusText.innerText = "無法即時連線台中交通網，請確認網路連線。";
+                statusText.innerText = "無法即時連線台中交通網，目前切換至預設測試資料。";
+                
+                // 備用方案：如果政府 API 斷線或代理伺服器塞車，塞入一組假資料讓您的導航按鈕可以測試
+                allParkingSpots = [
+                    { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 50, AVAILABLE: 42, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
+                    { POSITION: "大業初中地下停車場", ADDRESS: "南屯區大業路100號", TOTAL: 30, AVAILABLE: 5, LATITUDE: 24.1534, LONGITUDE: 120.6512 },
+                    { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 100, AVAILABLE: 15, LATITUDE: 24.1372, LONGITUDE: 120.6856 }
+                ];
+                renderParkingList(allParkingSpots);
             }
+        }
         }
 
         // 將即時資料渲染至網頁
