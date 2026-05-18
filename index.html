@@ -57,7 +57,7 @@
             fetchTaichungParkingData();
         });
 
-        // 串接台中市政府 Open Data API（免代理、官方放行跨域通道版）
+// 串接台中市政府 Open Data API（全新萬用代理打通版）
         async function fetchTaichungParkingData() {
             const statusText = document.getElementById('status-text');
             
@@ -72,26 +72,20 @@
             renderParkingList(allParkingSpots);
             statusText.innerText = "正在實時同步台中交通網車位...";
 
-            // 直接連線台中市政府專門開放給網頁端使用的免跨域通道
-            const apiUrl = "https://datacenter.taichung.gov.tw/swagger/OpenData/ea163e00-264d-444a-9dbd-0210e3046777"; 
+            // 🚀 終極解決方案：使用可靠的萬用網頁代理處理 CORS 機制
+            const proxyUrl = "https://thingproxy.freeboard.io/fetch/";
+            const apiUrl = "https://datacenter.taichung.gov.tw/swagger/OpenData/72c08233-de17-43cf-87eb-f9e0b8e76c12"; 
 
             try {
-                const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error('政府伺服器回應異常');
+                // 透過代理伺服器發送請求，繞過瀏覽器跨網域安全阻擋
+                const response = await fetch(proxyUrl + apiUrl);
+                if (!response.ok) throw new Error('代理伺服器回應異常');
                 
                 const realData = await response.json();
-                let parkingData = Array.isArray(realData) ? realData : (realData.data || []);
 
-                if (parkingData.length > 0) {
-                    // 將精簡版 API 的變數名稱格式化為大寫欄位
-                    allParkingSpots = parkingData.map(spot => ({
-                        POSITION: spot.parkingName || spot.POSITION || "公有停車場",
-                        ADDRESS: spot.address || spot.ADDRESS || "台中市",
-                        TOTAL: parseInt(spot.totalSpaces || spot.TOTAL || 0),
-                        AVAILABLE: parseInt(spot.availableSpaces || spot.AVAILABLE || 0),
-                        LATITUDE: spot.latitude || spot.LATITUDE,
-                        LONGITUDE: spot.longitude || spot.LONGITUDE
-                    }));
+                if (Array.isArray(realData) && realData.length > 0) {
+                    // 成功抓到政府大資料庫，直接將其指派給全域變數
+                    allParkingSpots = realData;
 
                     statusText.innerText = `🟢 同步成功！已連線台中交通網，共載入 ${allParkingSpots.length} 個最新車位資料。`;
                     
