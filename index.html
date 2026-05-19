@@ -64,63 +64,39 @@
         let recognition = null;
         let allParkingSpots = []; 
 
-        // 網頁載入完成後自動執行
-        window.addEventListener('DOMContentLoaded', () => {
-            initParkingData();
+// 串接自架的 Render 後端中轉站（真・全台中即時資料同步版）
+        async function fetchTaichungParkingData() {
+            const statusText = document.getElementById('status-text');
             
-            // 綁定鍵盤 Enter 鍵，打字完按 Enter 也能直接搜尋
-            document.getElementById('search-input').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    handleTextSearch();
-                }
-            });
-        });
+            // 內建快取模組（維持不變，確保秒開畫面不卡頓）
+            initParkingData(); 
+            statusText.innerText = "正在透過私有中轉站，即時同步全台中最新車位...";
 
-        // 資料庫：收錄全台中熱門區核心停車場（新增馬卡龍公園周邊）
-        function initParkingData() {
-            allParkingSpots = [
-                // 💡 太平區（新增熱門馬卡龍公園點位）
-                { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
-                { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
-                { POSITION: "太平區新平立體停車場", ADDRESS: "太平區樹德路", TOTAL: 110, AVAILABLE: 47, LATITUDE: 24.1552, LONGITUDE: 120.7138 },
-                { POSITION: "太平運動場平面停車場", ADDRESS: "太平區中興東路", TOTAL: 60, AVAILABLE: 22, LATITUDE: 24.1285, LONGITUDE: 120.7194 },
-                { POSITION: "太平坪林森林公園停車場", ADDRESS: "太平區中山路二段", TOTAL: 130, AVAILABLE: 75, LATITUDE: 24.1435, LONGITUDE: 120.7312 },
+            // ⚠️ 請把下方網址替換成您在 Render 複製的那串專屬後端網址，並在後面加上 /api/parking
+            const myBackendUrl = "https://您的專屬名稱.onrender.com/api/parking"; 
 
-                // 中區、西區
-                { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
-                { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
-                { POSITION: "台中大創綠園道停車場", ADDRESS: "西區公益路68號", TOTAL: 200, AVAILABLE: 88, LATITUDE: 24.1512, LONGITUDE: 120.6638 },
-                { POSITION: "大墩廣場停車場", ADDRESS: "西區大墩路", TOTAL: 90, AVAILABLE: 12, LATITUDE: 24.1531, LONGITUDE: 120.6492 },
+            try {
+                const response = await fetch(myBackendUrl);
+                if (!response.ok) throw new Error('後端中轉站連線異常');
                 
-                // 北區
-                { POSITION: "一中街新友停車場", ADDRESS: "北區一中街", TOTAL: 80, AVAILABLE: 15, LATITUDE: 24.1495, LONGITUDE: 120.6852 },
-                { POSITION: "中友百貨地下停車場", ADDRESS: "北區三民路三段161號", TOTAL: 400, AVAILABLE: 104, LATITUDE: 24.1528, LONGITUDE: 120.6864 },
-                { POSITION: "台中公園地下停車場", ADDRESS: "北區公園路37-1號", TOTAL: 300, AVAILABLE: 210, LATITUDE: 24.1441, LONGITUDE: 120.6848 },
+                const realData = await response.json();
 
-                // 西屯區
-                { POSITION: "逢甲黎客商旅旁停車場", ADDRESS: "西屯區逢甲路", TOTAL: 80, AVAILABLE: 18, LATITUDE: 24.1782, LONGITUDE: 120.6455 },
-                { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 150, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 },
-                { POSITION: "惠安立體停車場(歌劇院旁)", ADDRESS: "西屯區惠來路二段", TOTAL: 260, AVAILABLE: 45, LATITUDE: 24.1632, LONGITUDE: 120.6415 },
-                { POSITION: "逢甲福星立體停車場", ADDRESS: "西屯區福星路", TOTAL: 180, AVAILABLE: 3, LATITUDE: 24.1764, LONGITUDE: 120.6462 },
+                if (Array.isArray(realData) && realData.length > 0) {
+                    // 🚀 奇蹟時刻：成功突破 CORS 限制，拿到全台中幾百個公有停車場的真實即時資料！
+                    allParkingSpots = realData;
 
-                // 南屯區
-                { POSITION: "大業初中地下停車場", ADDRESS: "南屯區大業路100號", TOTAL: 50, AVAILABLE: 8, LATITUDE: 24.1534, LONGITUDE: 120.6512 },
-                { POSITION: "文心森林公園停車場", ADDRESS: "南屯區向上路二段", TOTAL: 220, AVAILABLE: 115, LATITUDE: 24.1438, LONGITUDE: 120.6441 },
-                { POSITION: "南屯國民運動中心停車場", ADDRESS: "南屯區黎明路一段", TOTAL: 70, AVAILABLE: 33, LATITUDE: 24.1368, LONGITUDE: 120.6272 },
-
-                // 大里區
-                { POSITION: "大里區運動公園地下停車場", ADDRESS: "大里區國光路二段505號", TOTAL: 420, AVAILABLE: 180, LATITUDE: 24.1118, LONGITUDE: 120.6872 },
-                { POSITION: "大里軟體園區停車場", ADDRESS: "大里區科技路1號", TOTAL: 250, AVAILABLE: 142, LATITUDE: 24.0952, LONGITUDE: 120.6958 },
-                { POSITION: "大里國光路大潤發停車場", ADDRESS: "大里區國光路二段", TOTAL: 150, AVAILABLE: 60, LATITUDE: 24.1165, LONGITUDE: 120.6841 },
-
-                // 北屯區
-                { POSITION: "北屯總站停車場", ADDRESS: "北屯區敦富路", TOTAL: 200, AVAILABLE: 95, LATITUDE: 24.1834, LONGITUDE: 120.7061 },
-                { POSITION: "民俗公園地下停車場", ADDRESS: "北屯區旅順路二段73號", TOTAL: 160, AVAILABLE: 51, LATITUDE: 24.1711, LONGITUDE: 120.6888 },
-                { POSITION: "大坑經補庫停車場", ADDRESS: "北屯區東山路一段", TOTAL: 240, AVAILABLE: 130, LATITUDE: 24.1805, LONGITUDE: 120.7325 }
-            ];
-
-            document.getElementById('status-text').innerText = "🟢 全功能資料庫就緒！您可以用語音，也可以在上方框框打字搜尋。";
-            renderParkingList(allParkingSpots.slice(0, 8));
+                    statusText.innerText = `🟢 實時同步成功！已連線台中交通網，目前提供 ${allParkingSpots.length} 個即時車位查詢。`;
+                    
+                    // 刷新首頁，自動改顯示真實世界的前 8 筆實時車位！
+                    const resultText = document.getElementById('result-text').innerText;
+                    if (resultText.includes("請說出目的地") || resultText === "") {
+                        renderParkingList(allParkingSpots.slice(0, 8));
+                    }
+                }
+            } catch (error) {
+                console.log("後端同步略過，維持安全內建大資料庫模式:", error);
+                statusText.innerText = "🟡 中轉站熱機中或連線略過，目前採用核心資料庫搜尋模式。";
+            }
         }
 
         // 🚀 新增功能：處理打字搜尋按鈕點擊
