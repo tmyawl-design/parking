@@ -86,7 +86,7 @@ const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
             fetchTDXParkingData();
         });
 
-        // 向您的 Cloudflare Worker 獲取最新即時資料（格式相容終極完美版）
+// 向您的 Cloudflare Worker 獲取最新即時資料（100% 官方 V1 格式對齊版）
         async function fetchTDXParkingData() {
             try {
                 if (MY_WORKER_URL.includes("您的帳號")) {
@@ -98,44 +98,40 @@ const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
                 
                 const tdxRealData = await dataResponse.json();
 
-                // 🚀 【核心修正】超強相容防禦網：管他政府吐出什麼格式，全部攔截拆箱！
+                // 🚀 【核心修正】對齊官方 basic/v1 的資料大箱子名稱：ParkingAvailabilities
                 let availList = [];
-                if (tdxRealData && tdxRealData.CarParkAvailabilities) {
-                    availList = tdxRealData.CarParkAvailabilities;
-                } else if (tdxRealData && tdxRealData.ParkingAvailabilities) {
+                if (tdxRealData && tdxRealData.ParkingAvailabilities) {
                     availList = tdxRealData.ParkingAvailabilities;
+                } else if (tdxRealData && tdxRealData.CarParkAvailabilities) {
+                    availList = tdxRealData.CarParkAvailabilities;
                 } else if (Array.isArray(tdxRealData)) {
                     availList = tdxRealData;
-                } else if (tdxRealData && typeof tdxRealData === 'object') {
-                    // 萬一包在更深層，自動尋找內含的陣列
-                    for (let key in tdxRealData) {
-                        if (Array.isArray(tdxRealData[key])) {
-                            availList = tdxRealData[key];
-                            break;
-                        }
-                    }
                 }
 
                 // 檢查是否真的有抓到陣列資料
                 if (availList && Array.isArray(availList) && availList.length > 0) {
                     allParkingSpots = availList.map(item => {
-                        // 自動相容 V2/V3 各種繁雜的欄位名稱
+                        // V1 欄位名稱對齊
                         const pName = item.CarParkName ? (item.CarParkName.Zh_tw || "公有停車場") : (item.CarParkID || "公有停車場");
                         
+                        // 讀取 V1 剩餘車位數 (官方欄位為 AvailableSpaces)
                         let availSpace = 0;
-                        if (item.AvailableSpaces !== undefined && item.AvailableSpaces >= 0) availSpace = item.AvailableSpaces;
-                        else if (item.AvailableCarSpaces !== undefined && item.AvailableCarSpaces >= 0) availSpace = item.AvailableCarSpaces;
-                        else if (item.Available !== undefined && item.Available >= 0) availSpace = item.Available;
+                        if (item.AvailableSpaces !== undefined && item.AvailableSpaces >= 0) {
+                            availSpace = item.AvailableSpaces;
+                        } else if (item.AvailableCarSpaces !== undefined && item.AvailableCarSpaces >= 0) {
+                            availSpace = item.AvailableCarSpaces;
+                        }
 
-                        let totalSpace = item.TotalSpaces || item.TotalCarSpaces || item.Total || 0;
+                        // 讀取總車位數
+                        let totalSpace = item.TotalSpaces || item.TotalCarSpaces || 0;
 
                         return {
                             POSITION: pName,
-                            ADDRESS: item.CarParkAddress || item.Address || "台中市區域",
+                            ADDRESS: item.CarParkAddress || "台中市區域",
                             TOTAL: totalSpace,
                             AVAILABLE: availSpace,
-                            LATITUDE: item.LocationLatitude || item.Latitude || 24.1372,
-                            LONGITUDE: item.LocationLongitude || item.Longitude || 120.6856
+                            LATITUDE: item.LocationLatitude || 24.1372,
+                            LONGITUDE: item.LocationLongitude || 120.6856
                         };
                     });
 
@@ -144,15 +140,16 @@ const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
                     document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端通道載入 ${allParkingSpots.length} 個即時車位。`;
                     renderParkingList(allParkingSpots.slice(0, 15));
                 } else {
-                    // 如果雲端回傳了政府的錯誤訊息，直接顯示出來
+                    // 如果 Cloudflare 傳回了錯誤
                     if (tdxRealData && tdxRealData.error) {
                         throw new Error(tdxRealData.error);
                     }
-                    throw new Error('雲端回傳格式不符，未偵測到車位陣列');
+                    throw new Error('雲端已連通，但未偵測到有效的車位資料陣列');
                 }
             } catch (e) {
                 console.log("轉向安全備用模式:", e);
                 allParkingSpots = [...backupSpots];
+                // 🚀 這裡會即時反映最新的錯誤原因，不再卡在舊的「V3 404」字眼
                 document.getElementById('status-text').innerText = `🟡 目前運行於核心備用模式 (原因:${e.message})`;
                 renderParkingList(allParkingSpots);
             }
