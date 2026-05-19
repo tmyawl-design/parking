@@ -43,12 +43,12 @@
         </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">智慧停車系統已就緒！</p>
+            <p id="status-text" class="text-gray-600 font-medium">正在透過雲端通道同步全台中車位...</p>
             <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
         </div>
 
         <div class="space-y-3" id="parking-list">
-            <div class="text-center text-gray-500 py-8">正在啟動停車場模組...</div>
+            <div class="text-center text-gray-500 py-8">正在載入即時停車場資料...</div>
         </div>
     </main>
 
@@ -64,75 +64,43 @@
         let recognition = null;
         let allParkingSpots = []; 
 
-        // ⚠️ 【關鍵設定】當您申請到 TDX 的 Client ID 與 Secret 後，請填入下方引號中
-        const TDX_CLIENT_ID = "tmya.w.l-c3e7b8e0-5b30-41a8";
-        const TDX_CLIENT_SECRET = "4ee7598b-80ea-4f2d-b9f5-8d3555b6febb";
+        // ⚠️ 【重要設定】請把下方引號內換成您在 Cloudflare 複製的那串專屬 Worker 網址
+        // 確保一定是 https 開頭，且結尾「不要」帶有斜線 / 喔！
+        const MY_WORKER_URL = "tdx-proxy.tmya-w-l.workers.dev";
 
+        // 內建的核心備用資料（萬一雲端斷線時保底用，確保網頁絕對不卡死）
+        const backupSpots = [
+            { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
+            { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
+            { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
+            { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
+            { POSITION: "台中大創綠園道停車場", ADDRESS: "西區公益路68號", TOTAL: 200, AVAILABLE: 88, LATITUDE: 24.1512, LONGITUDE: 120.6638 },
+            { POSITION: "一中街新友停車場", ADDRESS: "北區一中街", TOTAL: 80, AVAILABLE: 15, LATITUDE: 24.1495, LONGITUDE: 120.6852 },
+            { POSITION: "逢甲黎客商旅旁停車場", ADDRESS: "西屯區逢甲路", TOTAL: 80, AVAILABLE: 18, LATITUDE: 24.1782, LONGITUDE: 120.6455 },
+            { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 150, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 }
+        ];
+
+        // 網頁開啟時自動運作
         window.addEventListener('DOMContentLoaded', () => {
-            loadInitialData();
+            fetchTDXParkingData();
         });
 
-// 預設核心大資料庫（保證網頁刷新不卡死、隨時可供搜尋）
-        function loadInitialData() {
-            // 預設核心點位
-            allParkingSpots = [
-                { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
-                { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
-                { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
-                { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
-                { POSITION: "台中大創綠園道停車場", ADDRESS: "西區公益路68號", TOTAL: 200, AVAILABLE: 88, LATITUDE: 24.1512, LONGITUDE: 120.6638 },
-                { POSITION: "一中街新友停車場", ADDRESS: "北區一中街", TOTAL: 80, AVAILABLE: 15, LATITUDE: 24.1495, LONGITUDE: 120.6852 },
-                { POSITION: "逢甲黎客商旅旁停車場", ADDRESS: "西屯區逢甲路", TOTAL: 80, AVAILABLE: 18, LATITUDE: 24.1782, LONGITUDE: 120.6455 },
-                { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 150, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 },
-                { POSITION: "大業初中地下停車場", ADDRESS: "南屯區大業路100號", TOTAL: 50, AVAILABLE: 8, LATITUDE: 24.1534, LONGITUDE: 120.6512 },
-                { POSITION: "大里區運動公園地下停車場", ADDRESS: "大里區國光路二段505號", TOTAL: 420, AVAILABLE: 180, LATITUDE: 24.1118, LONGITUDE: 120.6872 },
-                { POSITION: "太平區新平立體停車場", ADDRESS: "太平區樹德路", TOTAL: 110, AVAILABLE: 47, LATITUDE: 24.1552, LONGITUDE: 120.7138 },
-                { POSITION: "北屯總站停車場", ADDRESS: "北屯區敦富路", TOTAL: 200, AVAILABLE: 95, LATITUDE: 24.1834, LONGITUDE: 120.7061 }
-            ];
-            
-            // 先顯示預設資料讓使用者不卡頓
-            renderParkingList(allParkingSpots.slice(0, 8));
-
-            // 🚀 解鎖大閘門：不再檢查前端變數，直接讓手機衝去您的 Cloudflare 雲端要全台中即時資料！
-            document.getElementById('status-text').innerText = "正在透過雲端極速通道同步實時全台中車位...";
-            fetchTDXParkingData();
-        }
-            } else {
-                document.getElementById('status-text').innerText = "🟢 目前運行於核心區域模式。若要即時更新全台中車位，請在程式碼內填入 TDX 金鑰！";
-            }
-        }
-
-
-
-        // 處理打字搜尋
-        function handleTextSearch() {
-            const inputVal = document.getElementById('search-input').value;
-            if (!inputVal.trim()) {
-                alert("請先輸入要搜尋的地名或行政區喔！");
-                return;
-            }
-            document.getElementById('status-text').innerText = `已幫您打字搜尋「${inputVal}」附近的停車場：`;
-            searchParkingSpots(inputVal);
-        }
-
-// 向您自建的 Cloudflare 無伺服器通道獲取最新即時資料（免後端、零卡頓完美版）
+        // 向您的 Cloudflare Worker 獲取最新即時資料
         async function fetchTDXParkingData() {
             try {
-                // ⚠️ 請把下方網址替換成您剛剛在 Cloudflare 複製的那串專屬 Worker 網址
-                const myWorkerUrl = "https://tdx-proxy.tmya-w-l.workers.dev"; 
+                if (MY_WORKER_URL.includes("您的帳號")) {
+                    throw new Error("尚未設定正確的 Worker 網址");
+                }
 
-                const dataResponse = await fetch(myWorkerUrl);
-                if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (代碼:${dataResponse.status})`);
+                const dataResponse = await fetch(MY_WORKER_URL);
+                if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (狀態碼:${dataResponse.status})`);
                 
                 const tdxRealData = await dataResponse.json();
-
-                // 解析 TDX 回傳的即時車位清單
                 const availList = tdxRealData.CarParkAvailabilities || tdxRealData.ParkingAvailabilities || tdxRealData;
 
                 if (availList && Array.isArray(availList) && availList.length > 0) {
                     allParkingSpots = availList.map(item => {
                         const pName = item.CarParkName ? (item.CarParkName.Zh_tw || "公有停車場") : (item.CarParkID || "公有停車場");
-                        
                         let availSpace = 0;
                         if (item.AvailableSpaces !== undefined && item.AvailableSpaces >= 0) availSpace = item.AvailableSpaces;
                         else if (item.AvailableCarSpaces !== undefined && item.AvailableCarSpaces >= 0) availSpace = item.AvailableCarSpaces;
@@ -149,22 +117,22 @@
                         };
                     });
 
-                    // 依據剩餘車位數排序
+                    // 排序：剩餘車位多的排前面
                     allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
-
-                    document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端極速通道同步 ${allParkingSpots.length} 個即時車位。`;
-                    renderParkingList(allParkingSpots.slice(0, 8));
+                    document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端通道載入 ${allParkingSpots.length} 個即時車位。`;
+                    renderParkingList(allParkingSpots.slice(0, 15));
                 } else {
-                    throw new Error('雲端通道資料格式未對齊');
+                    throw new Error('雲端回傳格式不符');
                 }
             } catch (e) {
-                console.log("TDX 同步失敗，轉向安全備用模式:", e);
-                document.getElementById('status-text').innerText = `🟡 實時連線受限 (原因:${e.message})，目前採用內建核心預設點位模式。`;
-                renderParkingList(allParkingSpots.slice(0, 8));
+                console.log("轉向安全備用模式:", e);
+                allParkingSpots = [...backupSpots];
+                document.getElementById('status-text').innerText = `🟡 目前運行於核心備用模式 (原因:${e.message})`;
+                renderParkingList(allParkingSpots);
             }
         }
-        
-        // 將資料渲染至網頁
+
+        // 將資料渲染至網頁卡片
         function renderParkingList(spots) {
             const listContainer = document.getElementById('parking-list');
             listContainer.innerHTML = ""; 
@@ -175,35 +143,28 @@
             }
 
             spots.forEach(spot => {
-                const name = spot.POSITION;
-                const address = spot.ADDRESS;
-                const totalSpaces = spot.TOTAL;
-                const leftSpaces = spot.AVAILABLE; 
-                const lat = spot.LATITUDE;
-                const lng = spot.LONGITUDE;
-                
                 let countColor = "text-green-600";
                 let bgColor = "border-gray-200";
-                if (leftSpaces <= 0) {
+                if (spot.AVAILABLE <= 0) {
                     countColor = "text-red-500";
                     bgColor = "bg-red-50 border-red-100";
-                } else if (leftSpaces < 10) {
+                } else if (spot.AVAILABLE < 10) {
                     countColor = "text-yellow-600";
                 }
 
                 const cardHtml = `
                     <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center">
                         <div class="flex-1 pr-2">
-                            <h3 class="font-bold text-gray-800 text-base">${name}</h3>
-                            <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${address}</p>
+                            <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
+                            <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${spot.ADDRESS}</p>
                             <div class="flex gap-2 mt-2">
-                                <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${totalSpaces}</span>
+                                <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
                             </div>
                         </div>
                         <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
                             <div class="text-[11px] text-gray-400">剩餘車位</div>
-                            <div class="text-2xl font-black ${countColor}">${leftSpaces}</div>
-                            <button onclick="navigate(${lat}, ${lng})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
+                            <div class="text-2xl font-black ${countColor}">${spot.AVAILABLE}</div>
+                            <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
                                 <i class="fa-solid fa-location-arrow"></i> 導航
                             </button>
                         </div>
@@ -213,14 +174,22 @@
             });
         }
 
+        // 處理打字搜尋
+        function handleTextSearch() {
+            const inputVal = document.getElementById('search-input').value;
+            if (!inputVal.trim()) {
+                alert("請先輸入要搜尋的地名或行政區喔！");
+                return;
+            }
+            document.getElementById('status-text').innerText = `已幫您打字搜尋「${inputVal}」附近的停車場：`;
+            searchParkingSpots(inputVal);
+        }
+
         // 搜尋比對
         function searchParkingSpots(keyword) {
-            if (!allParkingSpots || allParkingSpots.length === 0) return;
             const cleanKey = keyword.trim();
             const filtered = allParkingSpots.filter(spot => {
-                const pName = spot.POSITION || "";
-                const pAddr = spot.ADDRESS || "";
-                return pName.includes(cleanKey) || pAddr.includes(cleanKey);
+                return spot.POSITION.includes(cleanKey) || spot.ADDRESS.includes(cleanKey);
             });
             renderParkingList(filtered);
         }
@@ -290,8 +259,7 @@
                 alert("此停車場暫無定位資料");
                 return;
             }
-            const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-            window.open(googleMapsUrl, '_blank');
+            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
         }
     </script>
 </body>
