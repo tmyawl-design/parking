@@ -72,8 +72,9 @@
             loadInitialData();
         });
 
-        // 預設核心大資料庫（保證網頁刷新不卡死、隨時可供搜尋）
+// 預設核心大資料庫（保證網頁刷新不卡死、隨時可供搜尋）
         function loadInitialData() {
+            // 預設核心點位
             allParkingSpots = [
                 { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
                 { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
@@ -88,11 +89,14 @@
                 { POSITION: "太平區新平立體停車場", ADDRESS: "太平區樹德路", TOTAL: 110, AVAILABLE: 47, LATITUDE: 24.1552, LONGITUDE: 120.7138 },
                 { POSITION: "北屯總站停車場", ADDRESS: "北屯區敦富路", TOTAL: 200, AVAILABLE: 95, LATITUDE: 24.1834, LONGITUDE: 120.7061 }
             ];
+            
+            // 先顯示預設資料讓使用者不卡頓
             renderParkingList(allParkingSpots.slice(0, 8));
 
-            if (TDX_CLIENT_ID !== "tmya.w.l-c3e7b8e0-5b30-41a8") {
-                document.getElementById('status-text').innerText = "正在向 TDX 交通網路同步實時全台中車位...";
-                fetchTDXParkingData();
+            // 🚀 解鎖大閘門：不再檢查前端變數，直接讓手機衝去您的 Cloudflare 雲端要全台中即時資料！
+            document.getElementById('status-text').innerText = "正在透過雲端極速通道同步實時全台中車位...";
+            fetchTDXParkingData();
+        }
             } else {
                 document.getElementById('status-text').innerText = "🟢 目前運行於核心區域模式。若要即時更新全台中車位，請在程式碼內填入 TDX 金鑰！";
             }
