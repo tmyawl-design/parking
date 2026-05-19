@@ -110,42 +110,34 @@
             document.getElementById('status-text').innerText = `已幫您打字搜尋「${inputVal}」附近的停車場：`;
             searchParkingSpots(inputVal);
         }
-// 向官方 TDX 獲取最新即時資料（更換萬用 AllOrigins 代理穿透版）
+
+// 向官方 TDX 獲取最新即時資料（官方標準 X-API 驗證直連版）
         async function fetchTDXParkingData() {
             try {
-                // 🚀 使用 allorigins 代理，它會把目標網頁的內容打包成乾淨的 JSON，絕不會吐出驗證文字阻擋
-                const corsProxy = "https://api.allorigins.win/get?url=";
-                
-                // 1. 取得驗證 Token
-                const tokenUrl = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-                // 將要請求的網址與參數進行編碼，確保安全穿越代理
-                const targetTokenUrl = `${corsProxy}${encodeURIComponent(tokenUrl)}`;
-                
-                const tokenResponse = await fetch(targetTokenUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `grant_type=client_credentials&client_id=${TDX_CLIENT_ID}&client_secret=${TDX_CLIENT_SECRET}`
-                });
-                
-                const proxyTokenData = await tokenResponse.json();
-                // allorigins 會把真正的內容放在 .contents 裡面，我們需要再解析一次
-                const tokenData = JSON.parse(proxyTokenData.contents);
-                const accessToken = tokenData.access_token;
-
-                if (!accessToken) throw new Error('Token 取得失敗，請檢查 TDX 金鑰是否正確');
-
-                // 2. 獲取台中市即時剩餘車位資料
+                // 🚀 官方標準直連網址
                 const tdxDataUrl = "https://tdx.transportdata.tw/api/basic/v2/Parking/OffStreet/Availability/City/Taichung?%24format=JSON";
-                const targetDataUrl = `${corsProxy}${encodeURIComponent(tdxDataUrl)}`;
                 
-                const dataResponse = await fetch(targetDataUrl, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                
-                const proxyData = await dataResponse.json();
-                const tdxRealData = JSON.parse(proxyData.contents);
+                // 建立官方認可的特製 API 驗證鎖頭 (欄位名稱必須為 X-ClientID 與 X-ClientSecret)
+                const myHeaders = new Headers();
+                myHeaders.append("accept", "application/json");
+                myHeaders.append("X-ClientID", TDX_CLIENT_ID.trim());
+                myHeaders.append("X-ClientSecret", TDX_CLIENT_SECRET.trim());
 
-                // 3. 判斷並解析欄位格式
+                const dataResponse = await fetch(tdxDataUrl, {
+                    method: 'GET',
+                    headers: myHeaders,
+                    mode: 'cors'
+                });
+
+                // 萬一金鑰還是有問題，抓取官方回傳的錯誤原因
+                if (!dataResponse.ok) {
+                    const errText = await dataResponse.text();
+                    throw new Error(`政府伺服器拒絕驗證 (代碼:${dataResponse.status})`);
+                }
+                
+                const tdxRealData = await dataResponse.json();
+
+                // 解析 TDX 回傳的即時車位清單
                 const availList = tdxRealData.CarParkAvailabilities || tdxRealData;
 
                 if (availList && Array.isArray(availList) && availList.length > 0) {
@@ -158,10 +150,10 @@
                         LONGITUDE: item.LocationLongitude || 120.6856
                     }));
 
-                    document.getElementById('status-text').innerText = `🟢 同步成功！已實時連線官方 TDX，共載入 ${allParkingSpots.length} 個即時車位。`;
+                    document.getElementById('status-text').innerText = `🟢 同步成功！已直連官方 TDX 資料庫，共載入 ${allParkingSpots.length} 個即時車位。`;
                     renderParkingList(allParkingSpots.slice(0, 8));
                 } else {
-                    throw new Error('未取得有效的車位欄位清單');
+                    throw new Error('未取得有效的車位資料欄位');
                 }
             } catch (e) {
                 console.log("TDX 同步失敗，轉向安全備用模式:", e);
@@ -169,6 +161,7 @@
                 renderParkingList(allParkingSpots.slice(0, 8));
             }
         }
+        
         // 將資料渲染至網頁
         function renderParkingList(spots) {
             const listContainer = document.getElementById('parking-list');
