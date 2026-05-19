@@ -111,74 +111,47 @@
             searchParkingSpots(inputVal);
         }
 
-// 向官方 TDX 獲取最新即時資料（100% 正確網址終極版）
+// 向您自建的 Cloudflare 無伺服器通道獲取最新即時資料（免後端、零卡頓完美版）
         async function fetchTDXParkingData() {
             try {
-                // 🚀 真正修正！百分之百正確的 TDX 台中市路徑
-                const tdxDataUrl = "https://tdx.transportdata.tw/api/basic/v2/Parking/OffStreet/Availability/City/Taichung?%24format=JSON";
-                
-                // 建立官方認可的特製 API 驗證鎖頭
-                const myHeaders = new Headers();
-                myHeaders.append("accept", "application/json");
-                myHeaders.append("X-ClientID", TDX_CLIENT_ID.trim());
-                myHeaders.append("X-ClientSecret", TDX_CLIENT_SECRET.trim());
+                // ⚠️ 請把下方網址替換成您剛剛在 Cloudflare 複製的那串專屬 Worker 網址
+                const myWorkerUrl = "https://tdx-proxy.tmya-w-l.workers.dev"; 
 
-                const dataResponse = await fetch(tdxDataUrl, {
-                    method: 'GET',
-                    headers: myHeaders,
-                    mode: 'cors'
-                });
-
-                // 萬一還是有錯誤，抓取官方回傳的狀態碼與內文
-                if (!dataResponse.ok) {
-                    const errText = await dataResponse.text();
-                    throw new Error(`政府伺服器回應錯誤 (代碼:${dataResponse.status})`);
-                }
+                const dataResponse = await fetch(myWorkerUrl);
+                if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (代碼:${dataResponse.status})`);
                 
                 const tdxRealData = await dataResponse.json();
 
-                // 精準對接 TDX 回傳的陣列格式（防呆相容處理）
-                let availList = [];
-                if (Array.isArray(tdxRealData)) {
-                    availList = tdxRealData;
-                } else if (tdxRealData && tdxRealData.CarParkAvailabilities) {
-                    availList = tdxRealData.CarParkAvailabilities;
-                } else if (tdxRealData && tdxRealData.ParkingAvailabilities) {
-                    availList = tdxRealData.ParkingAvailabilities;
-                }
+                // 解析 TDX 回傳的即時車位清單
+                const availList = tdxRealData.CarParkAvailabilities || tdxRealData.ParkingAvailabilities || tdxRealData;
 
-                if (availList && availList.length > 0) {
-                    // 將官方資料全部洗成我們網頁需要的乾淨格式
+                if (availList && Array.isArray(availList) && availList.length > 0) {
                     allParkingSpots = availList.map(item => {
-                        // 處理 TDX 名稱與欄位
                         const pName = item.CarParkName ? (item.CarParkName.Zh_tw || "公有停車場") : (item.CarParkID || "公有停車場");
                         
-                        // 尋找剩餘車位數 (相容不同版本的車位欄位名稱)
                         let availSpace = 0;
                         if (item.AvailableSpaces !== undefined && item.AvailableSpaces >= 0) availSpace = item.AvailableSpaces;
                         else if (item.AvailableCarSpaces !== undefined && item.AvailableCarSpaces >= 0) availSpace = item.AvailableCarSpaces;
-                        else if (item.Available !== undefined && item.Available >= 0) availSpace = item.Available;
 
-                        // 尋找總車位數
-                        let totalSpace = item.TotalSpaces || item.TotalCarSpaces || item.Total || 0;
+                        let totalSpace = item.TotalSpaces || item.TotalCarSpaces || 0;
 
                         return {
                             POSITION: pName,
-                            ADDRESS: item.CarParkAddress || item.Address || "台中市區域",
+                            ADDRESS: item.CarParkAddress || "台中市區域",
                             TOTAL: totalSpace,
                             AVAILABLE: availSpace,
-                            LATITUDE: item.LocationLatitude || item.Latitude || 24.1372,
-                            LONGITUDE: item.LocationLongitude || item.Longitude || 120.6856
+                            LATITUDE: item.LocationLatitude || 24.1372,
+                            LONGITUDE: item.LocationLongitude || 120.6856
                         };
                     });
 
-                    // 依據剩餘車位數排序，讓還有空位的停車場排在最前面
+                    // 依據剩餘車位數排序
                     allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
 
-                    document.getElementById('status-text').innerText = `🟢 同步成功！已直連官方 TDX 資料庫，共載入 ${allParkingSpots.length} 個即時車位。`;
+                    document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端極速通道同步 ${allParkingSpots.length} 個即時車位。`;
                     renderParkingList(allParkingSpots.slice(0, 8));
                 } else {
-                    throw new Error('未取得有效的車位資料清單');
+                    throw new Error('雲端通道資料格式未對齊');
                 }
             } catch (e) {
                 console.log("TDX 同步失敗，轉向安全備用模式:", e);
