@@ -87,7 +87,7 @@ const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
         });
 
 // 向您的 Cloudflare Worker 獲取最新即時資料（100% 官方 V1 格式對齊版）
-        async function fetchTDXParkingData() {
+async function fetchTDXParkingData() {
             try {
                 if (MY_WORKER_URL.includes("您的帳號")) {
                     throw new Error("尚未設定正確的 Worker 網址");
@@ -98,7 +98,12 @@ const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
                 
                 const tdxRealData = await dataResponse.json();
 
-                // 🚀 【核心修正】對齊官方 basic/v1 的資料大箱子名稱：ParkingAvailabilities
+                // 如果 Worker 回傳了錯誤訊息，直接拋出
+                if (tdxRealData && tdxRealData.error) {
+                    throw new Error(tdxRealData.error);
+                }
+
+                // 🚀 精準對接您 Cloudflare 抓到的 ParkingAvailabilities 欄位
                 let availList = [];
                 if (tdxRealData && tdxRealData.ParkingAvailabilities) {
                     availList = tdxRealData.ParkingAvailabilities;
@@ -108,53 +113,32 @@ const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
                     availList = tdxRealData;
                 }
 
-                // 檢查是否真的有抓到陣列資料
                 if (availList && Array.isArray(availList) && availList.length > 0) {
                     allParkingSpots = availList.map(item => {
-                        // V1 欄位名稱對齊
                         const pName = item.CarParkName ? (item.CarParkName.Zh_tw || "公有停車場") : (item.CarParkID || "公有停車場");
-                        
-                        // 讀取 V1 剩餘車位數 (官方欄位為 AvailableSpaces)
-                        let availSpace = 0;
-                        if (item.AvailableSpaces !== undefined && item.AvailableSpaces >= 0) {
-                            availSpace = item.AvailableSpaces;
-                        } else if (item.AvailableCarSpaces !== undefined && item.AvailableCarSpaces >= 0) {
-                            availSpace = item.AvailableCarSpaces;
-                        }
-
-                        // 讀取總車位數
-                        let totalSpace = item.TotalSpaces || item.TotalCarSpaces || 0;
-
                         return {
                             POSITION: pName,
-                            ADDRESS: item.CarParkAddress || "台中市區域",
-                            TOTAL: totalSpace,
-                            AVAILABLE: availSpace,
-                            LATITUDE: item.LocationLatitude || 24.1372,
-                            LONGITUDE: item.LocationLongitude || 120.6856
+                            ADDRESS: item.CarParkAddress || item.Address || "台中市區域",
+                            TOTAL: item.TotalSpaces || 0,
+                            AVAILABLE: item.AvailableSpaces !== undefined ? item.AvailableSpaces : 0,
+                            LATITUDE: item.Latitude || 24.1372,
+                            LONGITUDE: item.Longitude || 120.6856
                         };
                     });
 
-                    // 排序：剩餘車位多的排前面
                     allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
                     document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端通道載入 ${allParkingSpots.length} 個即時車位。`;
                     renderParkingList(allParkingSpots.slice(0, 15));
                 } else {
-                    // 如果 Cloudflare 傳回了錯誤
-                    if (tdxRealData && tdxRealData.error) {
-                        throw new Error(tdxRealData.error);
-                    }
-                    throw new Error('雲端已連通，但未偵測到有效的車位資料陣列');
+                    throw new Error('雲端回傳格式不符，未偵測到車位陣列');
                 }
             } catch (e) {
                 console.log("轉向安全備用模式:", e);
                 allParkingSpots = [...backupSpots];
-                // 🚀 這裡會即時反映最新的錯誤原因，不再卡在舊的「V3 404」字眼
                 document.getElementById('status-text').innerText = `🟡 目前運行於核心備用模式 (原因:${e.message})`;
                 renderParkingList(allParkingSpots);
             }
         }
-
         // 將資料渲染至網頁卡片
         function renderParkingList(spots) {
             const listContainer = document.getElementById('parking-list');
