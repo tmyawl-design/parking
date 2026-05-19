@@ -98,6 +98,18 @@
             }
         }
 
+
+
+        // 處理打字搜尋
+        function handleTextSearch() {
+            const inputVal = document.getElementById('search-input').value;
+            if (!inputVal.trim()) {
+                alert("請先輸入要搜尋的地名或行政區喔！");
+                return;
+            }
+            document.getElementById('status-text').innerText = `已幫您打字搜尋「${inputVal}」附近的停車場：`;
+            searchParkingSpots(inputVal);
+        }
 // 向官方 TDX 獲取最新即時資料（更換萬用 AllOrigins 代理穿透版）
         async function fetchTDXParkingData() {
             try {
@@ -157,18 +169,6 @@
                 renderParkingList(allParkingSpots.slice(0, 8));
             }
         }
-
-        // 處理打字搜尋
-        function handleTextSearch() {
-            const inputVal = document.getElementById('search-input').value;
-            if (!inputVal.trim()) {
-                alert("請先輸入要搜尋的地名或行政區喔！");
-                return;
-            }
-            document.getElementById('status-text').innerText = `已幫您打字搜尋「${inputVal}」附近的停車場：`;
-            searchParkingSpots(inputVal);
-        }
-
         // 將資料渲染至網頁
         function renderParkingList(spots) {
             const listContainer = document.getElementById('parking-list');
