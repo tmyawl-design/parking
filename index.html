@@ -98,12 +98,14 @@
             }
         }
 
-        // 向官方 TDX 獲取最新即時資料
+// 向官方 TDX 獲取最新即時資料（前端直連免後端、解 CORS 穿透版）
         async function fetchTDXParkingData() {
             try {
-                // 1. 取得驗證 Token
+                // 1. 取得驗證 Token (使用 cors-anywhere 免費代理中轉，避開瀏覽器阻擋)
+                const corsProxy = "https://cors-anywhere.herokuapp.com/";
                 const tokenUrl = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-                const tokenResponse = await fetch(tokenUrl, {
+                
+                const tokenResponse = await fetch(corsProxy + tokenUrl, {
                     method: 'POST',
                     headers: { 'content-type': 'application/x-www-form-urlencoded' },
                     body: `grant_type=client_credentials&client_id=${TDX_CLIENT_ID}&client_secret=${TDX_CLIENT_SECRET}`
@@ -113,28 +115,35 @@
 
                 // 2. 獲取台中市即時剩餘車位資料
                 const tdxDataUrl = "https://tdx.transportdata.tw/api/basic/v2/Parking/OffStreet/Availability/City/Taichung?%24format=JSON";
-                const dataResponse = await fetch(tdxDataUrl, {
+                const dataResponse = await fetch(corsProxy + tdxDataUrl, {
                     headers: { 'authorization': `Bearer ${accessToken}` }
                 });
                 const tdxRealData = await dataResponse.json();
 
-                if (tdxRealData && tdxRealData.CarParkAvailabilities) {
-                    // 3. 重新整理資料格式以對齊介面
-                    allParkingSpots = tdxRealData.CarParkAvailabilities.map(item => ({
-                        POSITION: item.CarParkName.Zh_tw || "公有停車場",
-                        ADDRESS: item.CarParkAddress || "台中市",
-                        TOTAL: item.TotalSpaces || 0,
-                        AVAILABLE: item.AvailableSpaces < 0 ? 0 : item.AvailableSpaces,
-                        LATITUDE: item.LocationLatitude || 24.1372,
-                        LONGITUDE: item.LocationLongitude || 120.6856
+                // 判斷欄位格式 (TDX 有時回傳格式會依帳號等級有些微不同)
+                const availList = tdxRealData.CarParkAvailabilities || tdxRealData;
+
+                if (availList && Array.isArray(availList) && availList.length > 0) {
+                    // 3. 將 TDX 資料格式化，灌入我們的網頁大資料庫
+                    allParkingSpots = availList.map(item => ({
+                        POSITION: item.CarParkName ? (item.CarParkName.Zh_tw || "公有停車場") : (item.Position || "公有停車場"),
+                        ADDRESS: item.CarParkAddress || item.Address || "台中市",
+                        TOTAL: item.TotalSpaces || item.Total || 0,
+                        AVAILABLE: item.AvailableSpaces < 0 ? 0 : (item.AvailableSpaces || item.Available || 0),
+                        LATITUDE: item.LocationLatitude || item.Latitude || 24.1372,
+                        LONGITUDE: item.LocationLongitude || item.Longitude || 120.6856
                     }));
 
                     document.getElementById('status-text').innerText = `🟢 同步成功！已實時連線官方 TDX，共載入 ${allParkingSpots.length} 個即時車位。`;
                     renderParkingList(allParkingSpots.slice(0, 8));
+                } else {
+                    throw new Error('未取得有效欄位');
                 }
             } catch (e) {
                 console.log("TDX 同步失敗，轉向安全備用模式:", e);
-                document.getElementById('status-text').innerText = "🟡 實時資料庫獲取受限，目前採用核心預設點位模式。";
+                document.getElementById('status-text').innerText = `🟡 實時連線受限 (原因:${e.message})，目前採用內建核心預設點位模式。`;
+                // 失敗時，自動還原顯示我們預設好的 12 個核心點（包含馬卡龍公園），確保網頁絕對不卡死！
+                renderParkingList(allParkingSpots.slice(0, 8));
             }
         }
 
