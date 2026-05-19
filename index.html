@@ -43,12 +43,12 @@
         </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">智慧停車系統已就緒！請按下方麥克風或在上方打字搜尋。</p>
+            <p id="status-text" class="text-gray-600 font-medium">智慧停車系統已就緒！</p>
             <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
         </div>
 
         <div class="space-y-3" id="parking-list">
-            <div class="text-center text-gray-500 py-8">資料加載中...</div>
+            <div class="text-center text-gray-500 py-8">正在啟動停車場模組...</div>
         </div>
     </main>
 
@@ -64,42 +64,81 @@
         let recognition = null;
         let allParkingSpots = []; 
 
-// 串接自架的 Render 後端中轉站（真・全台中即時資料同步版）
-        async function fetchTaichungParkingData() {
-            const statusText = document.getElementById('status-text');
-            
-            // 內建快取模組（維持不變，確保秒開畫面不卡頓）
-            initParkingData(); 
-            statusText.innerText = "正在透過私有中轉站，即時同步全台中最新車位...";
+        // ⚠️ 【關鍵設定】當您申請到 TDX 的 Client ID 與 Secret 後，請填入下方引號中
+        const TDX_CLIENT_ID = "您的_CLIENT_ID";
+        const TDX_CLIENT_SECRET = "您的_CLIENT_SECRET";
 
-            // ⚠️ 請把下方網址替換成您在 Render 複製的那串專屬後端網址，並在後面加上 /api/parking
-            const myBackendUrl = "https://parking-backend-jpou.onrender.com"; 
+        window.addEventListener('DOMContentLoaded', () => {
+            loadInitialData();
+        });
 
-            try {
-                const response = await fetch(myBackendUrl);
-                if (!response.ok) throw new Error('後端中轉站連線異常');
-                
-                const realData = await response.json();
+        // 預設核心大資料庫（保證網頁刷新不卡死、隨時可供搜尋）
+        function loadInitialData() {
+            allParkingSpots = [
+                { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
+                { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
+                { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
+                { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
+                { POSITION: "台中大創綠園道停車場", ADDRESS: "西區公益路68號", TOTAL: 200, AVAILABLE: 88, LATITUDE: 24.1512, LONGITUDE: 120.6638 },
+                { POSITION: "一中街新友停車場", ADDRESS: "北區一中街", TOTAL: 80, AVAILABLE: 15, LATITUDE: 24.1495, LONGITUDE: 120.6852 },
+                { POSITION: "逢甲黎客商旅旁停車場", ADDRESS: "西屯區逢甲路", TOTAL: 80, AVAILABLE: 18, LATITUDE: 24.1782, LONGITUDE: 120.6455 },
+                { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 150, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 },
+                { POSITION: "大業初中地下停車場", ADDRESS: "南屯區大業路100號", TOTAL: 50, AVAILABLE: 8, LATITUDE: 24.1534, LONGITUDE: 120.6512 },
+                { POSITION: "大里區運動公園地下停車場", ADDRESS: "大里區國光路二段505號", TOTAL: 420, AVAILABLE: 180, LATITUDE: 24.1118, LONGITUDE: 120.6872 },
+                { POSITION: "太平區新平立體停車場", ADDRESS: "太平區樹德路", TOTAL: 110, AVAILABLE: 47, LATITUDE: 24.1552, LONGITUDE: 120.7138 },
+                { POSITION: "北屯總站停車場", ADDRESS: "北屯區敦富路", TOTAL: 200, AVAILABLE: 95, LATITUDE: 24.1834, LONGITUDE: 120.7061 }
+            ];
+            renderParkingList(allParkingSpots.slice(0, 8));
 
-                if (Array.isArray(realData) && realData.length > 0) {
-                    // 🚀 奇蹟時刻：成功突破 CORS 限制，拿到全台中幾百個公有停車場的真實即時資料！
-                    allParkingSpots = realData;
-
-                    statusText.innerText = `🟢 實時同步成功！已連線台中交通網，目前提供 ${allParkingSpots.length} 個即時車位查詢。`;
-                    
-                    // 刷新首頁，自動改顯示真實世界的前 8 筆實時車位！
-                    const resultText = document.getElementById('result-text').innerText;
-                    if (resultText.includes("請說出目的地") || resultText === "") {
-                        renderParkingList(allParkingSpots.slice(0, 8));
-                    }
-                }
-            } catch (error) {
-                console.log("後端同步略過，維持安全內建大資料庫模式:", error);
-                statusText.innerText = "🟡 中轉站熱機中或連線略過，目前採用核心資料庫搜尋模式。";
+            if (TDX_CLIENT_ID !== "您的_CLIENT_ID") {
+                document.getElementById('status-text').innerText = "正在向 TDX 交通網路同步實時全台中車位...";
+                fetchTDXParkingData();
+            } else {
+                document.getElementById('status-text').innerText = "🟢 目前運行於核心區域模式。若要即時更新全台中車位，請在程式碼內填入 TDX 金鑰！";
             }
         }
 
-        // 🚀 新增功能：處理打字搜尋按鈕點擊
+        // 向官方 TDX 獲取最新即時資料
+        async function fetchTDXParkingData() {
+            try {
+                // 1. 取得驗證 Token
+                const tokenUrl = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
+                const tokenResponse = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                    body: `grant_type=client_credentials&client_id=${TDX_CLIENT_ID}&client_secret=${TDX_CLIENT_SECRET}`
+                });
+                const tokenData = await tokenResponse.json();
+                const accessToken = tokenData.access_token;
+
+                // 2. 獲取台中市即時剩餘車位資料
+                const tdxDataUrl = "https://tdx.transportdata.tw/api/basic/v2/Parking/OffStreet/Availability/City/Taichung?%24format=JSON";
+                const dataResponse = await fetch(tdxDataUrl, {
+                    headers: { 'authorization': `Bearer ${accessToken}` }
+                });
+                const tdxRealData = await dataResponse.json();
+
+                if (tdxRealData && tdxRealData.CarParkAvailabilities) {
+                    // 3. 重新整理資料格式以對齊介面
+                    allParkingSpots = tdxRealData.CarParkAvailabilities.map(item => ({
+                        POSITION: item.CarParkName.Zh_tw || "公有停車場",
+                        ADDRESS: item.CarParkAddress || "台中市",
+                        TOTAL: item.TotalSpaces || 0,
+                        AVAILABLE: item.AvailableSpaces < 0 ? 0 : item.AvailableSpaces,
+                        LATITUDE: item.LocationLatitude || 24.1372,
+                        LONGITUDE: item.LocationLongitude || 120.6856
+                    }));
+
+                    document.getElementById('status-text').innerText = `🟢 同步成功！已實時連線官方 TDX，共載入 ${allParkingSpots.length} 個即時車位。`;
+                    renderParkingList(allParkingSpots.slice(0, 8));
+                }
+            } catch (e) {
+                console.log("TDX 同步失敗，轉向安全備用模式:", e);
+                document.getElementById('status-text').innerText = "🟡 實時資料庫獲取受限，目前採用核心預設點位模式。";
+            }
+        }
+
+        // 處理打字搜尋
         function handleTextSearch() {
             const inputVal = document.getElementById('search-input').value;
             if (!inputVal.trim()) {
@@ -116,7 +155,7 @@
             listContainer.innerHTML = ""; 
 
             if (!spots || spots.length === 0) {
-                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，換個名稱打字試試吧 😢</div>`;
+                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，換個名稱試試吧 😢</div>`;
                 return;
             }
 
@@ -159,7 +198,7 @@
             });
         }
 
-        // 關鍵字比對過濾（不論打字還是語音，共用此段進行模糊比對）
+        // 搜尋比對
         function searchParkingSpots(keyword) {
             if (!allParkingSpots || allParkingSpots.length === 0) return;
             const cleanKey = keyword.trim();
@@ -171,14 +210,13 @@
             renderParkingList(filtered);
         }
 
-        // 語音辨識核心
+        // 語音辨識
         function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
                 alert("目前瀏覽器不支援語音辨識，請使用 Android Chrome 開啟！");
                 return null;
             }
-
             const rec = new SpeechRecognition();
             rec.lang = 'zh-TW';
             rec.continuous = false;
@@ -203,7 +241,6 @@
                 }
                 stopMicUI();
             };
-
             rec.onerror = () => { stopMicUI(); };
             return rec;
         }
@@ -220,7 +257,7 @@
             document.getElementById('mic-btn').classList.replace('bg-blue-600', 'bg-red-500');
             document.getElementById('mic-btn').classList.add('recording-active');
             document.getElementById('mic-icon').classList.replace('fa-microphone', 'fa-stop');
-            document.getElementById('mic-tip').innerText = "說完請再按一次，或靜止說話自動辨識";
+            document.getElementById('mic-tip').innerText = "說完請再按一次";
             document.getElementById('status-text').innerText = "正在聆聽中...";
         }
 
@@ -232,7 +269,7 @@
             document.getElementById('mic-tip').innerText = "按我開始語音搜尋";
         }
 
-        // 全相容 Google Maps 導航跳轉
+        // Google Maps 導航
         function navigate(lat, lng) {
             if (!lat || !lng) {
                 alert("此停車場暫無定位資料");
