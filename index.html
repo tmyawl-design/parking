@@ -87,7 +87,9 @@ const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`
             fetchTDXParkingData();
         });
 
-// 向您的 Cloudflare Worker 獲取最新即時資料（全景點萬能對齊版）
+
+
+        // 向您的 Cloudflare Worker 獲取最新即時資料（含預測資料顏色識別版）
 async function fetchTDXParkingData() {
     try {
         if (MY_WORKER_URL.includes("您的帳號")) {
@@ -112,13 +114,13 @@ async function fetchTDXParkingData() {
 
         if (availList && Array.isArray(availList) && availList.length > 0) {
             allParkingSpots = availList.map(item => {
-                // ⚡【核心修復】強制使用後端精心包裝好的 POSITION 欄位，徹底打通前端搜尋引擎的任督二脈！
                 const targetName = item.POSITION || (item.CarParkName && item.CarParkName.Zh_tw) || "公有停車場";
                 return {
                     POSITION: targetName,
                     ADDRESS: item.ADDRESS || item.CarParkAddress || item.Address || "台中市區域",
                     TOTAL: parseInt(item.TOTAL || item.TotalSpaces) || 100,
                     AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : (item.AvailableSpaces !== undefined ? item.AvailableSpaces : 0),
+                    IS_PREDICTED: item.IS_PREDICTED === true, // 🌟 成功將後端的清洗標籤存入前端變數！
                     LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
                     LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
                 };
@@ -137,47 +139,63 @@ async function fetchTDXParkingData() {
         renderParkingList(allParkingSpots);
     }
 }
-        // 將資料渲染至網頁卡片
-        function renderParkingList(spots) {
-            const listContainer = document.getElementById('parking-list');
-            listContainer.innerHTML = ""; 
+        
+// 將資料渲染至網頁卡片（完美識別大數據智慧預估版）
+function renderParkingList(spots) {
+    const listContainer = document.getElementById('parking-list');
+    listContainer.innerHTML = ""; 
 
-            if (!spots || spots.length === 0) {
-                listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，換個名稱試試吧 😢</div>`;
-                return;
+    if (!spots || spots.length === 0) {
+        listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，換個名稱試試吧 😢</div>`;
+        return;
+    }
+
+    spots.forEach(spot => {
+        let countColor = "text-green-600 font-black";
+        let bgColor = "border-gray-200";
+        let fontStyle = ""; // 用來控制字體斜體
+        
+        // 1. 判斷是否為經過 Worker 清洗的「大數據智慧預估」資料
+        if (spot.IS_PREDICTED === true) {
+            countColor = "text-amber-500 font-extrabold"; // 🌟 強制換成質感的暖橘色
+            fontStyle = "italic"; // 🌟 加上帥氣的斜體字
+        } else {
+            // 2. 如果是正常的官方即時車位，維持你原本的紅黃綠燈判斷
+            if (spot.AVAILABLE <= 0) {
+                countColor = "text-red-500 font-black";
+                bgColor = "bg-red-50 border-red-100";
+            } else if (spot.AVAILABLE < 10) {
+                countColor = "text-yellow-600 font-black";
             }
-
-            spots.forEach(spot => {
-                let countColor = "text-green-600";
-                let bgColor = "border-gray-200";
-                if (spot.AVAILABLE <= 0) {
-                    countColor = "text-red-500";
-                    bgColor = "bg-red-50 border-red-100";
-                } else if (spot.AVAILABLE < 10) {
-                    countColor = "text-yellow-600";
-                }
-
-                const cardHtml = `
-                    <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center">
-                        <div class="flex-1 pr-2">
-                            <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
-                            <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${spot.ADDRESS}</p>
-                            <div class="flex gap-2 mt-2">
-                                <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-                            </div>
-                        </div>
-                        <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
-                            <div class="text-[11px] text-gray-400">剩餘車位</div>
-                            <div class="text-2xl font-black ${countColor}">${spot.AVAILABLE}</div>
-                            <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
-                                <i class="fa-solid fa-location-arrow"></i> 導航
-                            </button>
-                        </div>
-                    </div>
-                `;
-                listContainer.innerHTML += cardHtml;
-            });
         }
+
+        // 建立資料來源小標籤
+        const sourceBadge = spot.IS_PREDICTED === true
+            ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
+            : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`;
+
+        const cardHtml = `
+            <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center">
+                <div class="flex-1 pr-2">
+                    <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
+                    <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${spot.ADDRESS}</p>
+                    <div class="flex gap-2 mt-2 items-center">
+                        <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
+                        ${sourceBadge}
+                    </div>
+                </div>
+                <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
+                    <div class="text-[11px] text-gray-400">剩餘車位</div>
+                    <div class="text-2xl ${countColor} ${fontStyle}">${spot.AVAILABLE}</div>
+                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
+                        <i class="fa-solid fa-location-arrow"></i> 導航
+                    </button>
+                </div>
+            </div>
+        `;
+        listContainer.innerHTML += cardHtml;
+    });
+}
 
         // 處理打字搜尋
         function handleTextSearch() {
