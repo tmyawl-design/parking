@@ -158,7 +158,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c; 
 }
 
-// 智慧核心：地名轉座標 ＋ 半徑範圍雙軌搜尋
+// 智慧核心：地名轉座標 ＋ 萬無一失防摔版
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -172,61 +172,65 @@ async function doAdvancedSearch() {
 
     document.getElementById('status-text').innerText = `🔍 正在計算 「${keyword}」 的周邊車位與距離...`;
 
+    let targetLat = null;
+    let targetLon = null;
+
     try {
-        // 自動加上 "台中" 關鍵字，確保 OpenStreetMap 能精準定位在台中市內
         const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
         const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
         
         const geoResponse = await fetch(geoUrl, { 
             headers: { 
                 'Accept-Language': 'zh-TW',
-                'User-Agent': 'TaichungParkingApp/1.0' 
+                'User-Agent': 'TaichungParkingApp/2.0' 
             } 
         });
-        const geoData = await geoResponse.json();
+        
+        if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            if (geoData && geoData.length > 0) {
+                targetLat = parseFloat(geoData[0].lat);
+                targetLon = parseFloat(geoData[0].lon);
+            }
+        }
+    } catch (geoError) {
+        // 🌟 即使地名轉座標 API 壞掉，這裡也只是默默記錄，絕不讓網頁崩潰崩潰！
+        console.log("地名解析暫時中斷，啟動純文字備援計算");
+    }
 
-        let targetLat = null;
-        let targetLon = null;
+    // 繼續處理資料比對
+    let searchResults = allParkingSpots.map(spot => {
+        let distance = null;
+        let matchText = 0;
 
-        if (geoData && geoData.length > 0) {
-            targetLat = parseFloat(geoData[0].lat);
-            targetLon = parseFloat(geoData[0].lon);
+        if (targetLat !== null && targetLon !== null) {
+            distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
         }
 
-        let searchResults = allParkingSpots.map(spot => {
-            let distance = null;
-            let matchText = 0;
+        if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
+            spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
+            matchText = 1; 
+        }
 
-            if (targetLat !== null && targetLon !== null) {
-                distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
-            }
+        return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
+    });
 
-            if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
-                spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
-                matchText = 1; 
-            }
+    // 篩選
+    let filteredSpots = searchResults.filter(spot => {
+        return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
+    });
 
-            // 🌟 核心關鍵：將包含 FARE_DESC 在內的所有原始欄位完整擴充保留，絕不漏接！
-            return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
-        });
+    // 排序
+    filteredSpots.sort((a, b) => {
+        if (a.DISTANCE !== null && b.DISTANCE !== null) {
+            return a.DISTANCE - b.DISTANCE; 
+        }
+        return b.AVAILABLE - a.AVAILABLE;
+    });
 
-        // 篩選：名字符合關鍵字，或是距離目標地標 3.5 公里以內的所有停車場
-        let filteredSpots = searchResults.filter(spot => {
-            return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
-        });
-
-        // 排序：有計算出距離的，由近到遠排；其餘依照剩餘車位從多到少排
-        filteredSpots.sort((a, b) => {
-            if (a.DISTANCE !== null && b.DISTANCE !== null) {
-                return a.DISTANCE - b.DISTANCE; 
-            }
-            return b.AVAILABLE - a.AVAILABLE;
-        });
-
-        renderParkingList(filteredSpots);
-        document.getElementById('status-text').innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
-
-    } catch (error) {
+    renderParkingList(filteredSpots);
+    document.getElementById('status-text').innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
+} catch (error) {
         console.error("地理編碼異常，自動降級為純文字安全模糊搜尋", error);
         const fallback = allParkingSpots.filter(spot => 
             spot.POSITION.includes(keyword) || spot.ADDRESS.includes(keyword)
