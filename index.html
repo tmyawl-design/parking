@@ -143,7 +143,7 @@ async function fetchTDXParkingData() {
 
 
         
-// 將資料渲染至網頁卡片（逢甲優化＋新增收費描述版）
+// 將資料渲染至網頁卡片面版（修正變數未定義錯誤之終極防護版）
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
@@ -170,10 +170,7 @@ function renderParkingList(spots) {
             }
         }
 
-        const sourceBadge = spot.IS_PREDICTED === true
-            ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
-            : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`;
-
+        // 🌟 終極防護：直接在 cardHtml 組合時動態計算，徹底根除 "is not defined" 靈異現象
         const cardHtml = `
             <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
@@ -184,10 +181,19 @@ function renderParkingList(spots) {
                         <i class="fa-solid fa-circle-info text-blue-400"></i> 收費：${spot.FARE_DESC}
                     </p>
 
-               <div class="flex gap-2 mt-2 items-center">
-    <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-    ${sourceBadge}
-    ${distanceBadge} </div>
+                    <div class="flex gap-2 mt-2 items-center flex-wrap">
+                        <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
+                        
+                        ${spot.IS_PREDICTED === true
+                            ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
+                            : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`
+                        }
+
+                        ${(spot.DISTANCE !== null && spot.DISTANCE !== undefined) 
+                            ? `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200"><i class="fa-solid fa-route"></i> 距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>` 
+                            : ''
+                        } 
+                    </div>
                 </div>
                 <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
