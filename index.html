@@ -1,95 +1,35 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台中即時停車導航</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.6; }
-            50% { transform: scale(1.1); opacity: 1; }
-        }
-        .recording-active {
-            animation: pulse 1.5s infinite;
-        }
-    </style>
-</head>
-<body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
+// ==========================================
+// 核心設定：請確認您的 Cloudflare Worker 網址
+// ==========================================
+const MY_WORKER_URL = "https://taichung-parking-api.tmya-w-l-c3e7b8e0-5b30-41a8.workers.dev/"; 
 
-    <header class="bg-blue-600 text-white shadow-md p-4 sticky top-0 z-50 flex justify-between items-center">
-        <h1 class="text-xl font-bold flex items-center gap-2">
-            <i class="fa-solid fa-square-p text-yellow-300 text-2xl"></i>
-            台中車位即時查
-        </h1>
-        <a href="https://traffic.taichung.gov.tw/" target="_blank" class="bg-blue-700 hover:bg-blue-800 text-xs py-1.5 px-3 rounded-full transition-all flex items-center gap-1">
-            <i class="fa-solid fa-globe"></i> 台中交通網
-        </a>
-    </header>
+let allParkingSpots = []; // 儲存後端抓回來的所有車位資料
+let backupSpots = [];     // 備用核心資料庫
 
-    <main class="flex-1 p-4 pb-32 overflow-y-auto">
-        
-        <div class="bg-white rounded-xl p-3 shadow-sm mb-4 border border-gray-200">
-            <div class="flex gap-2">
-                <div class="relative flex-1">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
-                    <input type="text" id="search-input" placeholder="打字輸入地名（如：馬卡龍、逢甲）..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
-                </div>
-                <button onclick="handleTextSearch()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg text-sm flex items-center gap-1.5 transition-all shadow-sm shrink-0">
-                    搜尋
-                </button>
-            </div>
-        </div>
+// 網頁初始化載入
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. 自動向 Worker 獲取最新即時資料
+    fetchTDXParkingData();
 
-        <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">正在透過雲端通道同步全台中車位...</p>
-            <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
-        </div>
-
-        <div class="space-y-3" id="parking-list">
-            <div class="text-center text-gray-500 py-8">正在載入即時停車場資料...</div>
-        </div>
-    </main>
-
-    <div class="fixed bottom-6 left-0 right-0 flex flex-col items-center justify-center z-50 pointer-events-none">
-        <span id="mic-tip" class="bg-gray-800 text-white text-xs px-3 py-1 rounded-full shadow-md mb-2 pointer-events-auto font-medium">按我開始語音搜尋</span>
-        <button id="mic-btn" onclick="toggleVoiceSearch()" class="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 focus:outline-none">
-            <i id="mic-icon" class="fa-solid fa-microphone text-2xl"></i>
-        </button>
-    </div>
-
-    <script>
-        let isRecording = false;
-        let recognition = null;
-        let allParkingSpots = []; 
-
-        // ⚠️ 【重要設定】請把下方引號內換成您在 Cloudflare 複製的那串專屬 Worker 網址
-        // 確保一定是 https 開頭，且結尾「不要」帶有斜線 / 喔！
-// 🟢 請精準修改為這一行
-// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！
-const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`;
-
-        // 內建的核心備用資料（萬一雲端斷線時保底用，確保網頁絕對不卡死）
-        const backupSpots = [
-            { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
-            { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
-            { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
-            { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
-            { POSITION: "台中大創綠園道停車場", ADDRESS: "西區公益路68號", TOTAL: 200, AVAILABLE: 88, LATITUDE: 24.1512, LONGITUDE: 120.6638 },
-            { POSITION: "一中街新友停車場", ADDRESS: "北區一中街", TOTAL: 80, AVAILABLE: 15, LATITUDE: 24.1495, LONGITUDE: 120.6852 },
-            { POSITION: "逢甲黎客商旅旁停車場", ADDRESS: "西屯區逢甲路", TOTAL: 80, AVAILABLE: 18, LATITUDE: 24.1782, LONGITUDE: 120.6455 },
-            { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 150, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 }
-        ];
-
-        // 網頁開啟時自動運作
-        window.addEventListener('DOMContentLoaded', () => {
-            fetchTDXParkingData();
+    // 2. 自動強力綁定：讓輸入框支援按下 Enter 鍵也能觸發智慧搜尋
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                doAdvancedSearch();
+            }
         });
+    }
+    
+    // 3. 自動強力綁定：點擊搜尋按鈕時觸發智慧搜尋
+    const searchBtn = document.getElementById('search-btn');
+    if (searchBtn) {
+        searchBtn.removeAttribute('onclick'); // 移除舊的 onclick 避免衝突
+        searchBtn.addEventListener('click', doAdvancedSearch);
+    }
+});
 
-
-
-        // 向您的 Cloudflare Worker 獲取最新即時資料（含預測資料顏色識別版）
+// 向您的 Cloudflare Worker 獲取最新即時資料（含預測資料與收費資訊）
 async function fetchTDXParkingData() {
     try {
         if (MY_WORKER_URL.includes("您的帳號")) {
@@ -121,7 +61,7 @@ async function fetchTDXParkingData() {
                     TOTAL: parseInt(item.TOTAL || item.TotalSpaces) || 100,
                     AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : (item.AvailableSpaces !== undefined ? item.AvailableSpaces : 0),
                     IS_PREDICTED: item.IS_PREDICTED === true, 
-                    FARE_DESC: item.FARE_DESC || "依現場公告費率為準", // 🌟 接收收費敘述
+                    FARE_DESC: item.FARE_DESC || "依現場公告費率為準", // 🌟 確實接收後端收費敘述
                     LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
                     LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
                 };
@@ -141,19 +81,99 @@ async function fetchTDXParkingData() {
     }
 }
 
-// 判斷是否有計算出距離，並轉換成精緻的小標籤
-let distanceBadge = "";
-if (spot.DISTANCE !== null && spot.DISTANCE !== undefined) {
-    const distKm = spot.DISTANCE / 1000;
-    const distText = spot.DISTANCE < 1000 
-        ? `${Math.body(spot.DISTANCE)} 公尺` 
-        : `${distKm.toFixed(1)} 公里`;
+// 計算經緯度公里距離公式 (Haversine 公式)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; 
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; 
+}
+
+// 智慧核心：地名轉座標 ＋ 半徑範圍雙軌搜尋
+async function doAdvancedSearch() {
+    const searchInput = document.getElementById('search-input');
+    if (!searchInput) return;
     
-    distanceBadge = `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200"><i class="fa-solid fa-route"></i> 距離約 ${distText}</span>`;
-}        
+    const keyword = searchInput.value.trim();
+    
+    if (!keyword) {
+        renderParkingList(allParkingSpots.slice(0, 15));
+        return;
+    }
+
+    document.getElementById('status-text').innerText = `🔍 正在計算 「${keyword}」 的周邊車位與距離...`;
+
+    try {
+        // 自動加上 "台中" 關鍵字，確保 OpenStreetMap 能精準定位在台中市內
+        const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
+        const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
         
-        
-// 將資料渲染至網頁卡片（逢甲優化＋新增收費描述版）
+        const geoResponse = await fetch(geoUrl, { 
+            headers: { 
+                'Accept-Language': 'zh-TW',
+                'User-Agent': 'TaichungParkingApp/1.0' 
+            } 
+        });
+        const geoData = await geoResponse.json();
+
+        let targetLat = null;
+        let targetLon = null;
+
+        if (geoData && geoData.length > 0) {
+            targetLat = parseFloat(geoData[0].lat);
+            targetLon = parseFloat(geoData[0].lon);
+        }
+
+        let searchResults = allParkingSpots.map(spot => {
+            let distance = null;
+            let matchText = 0;
+
+            if (targetLat !== null && targetLon !== null) {
+                distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
+            }
+
+            if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
+                spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
+                matchText = 1; 
+            }
+
+            // 🌟 核心關鍵：將包含 FARE_DESC 在內的所有原始欄位完整擴充保留，絕不漏接！
+            return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
+        });
+
+        // 篩選：名字符合關鍵字，或是距離目標地標 3.5 公里以內的所有停車場
+        let filteredSpots = searchResults.filter(spot => {
+            return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
+        });
+
+        // 排序：有計算出距離的，由近到遠排；其餘依照剩餘車位從多到少排
+        filteredSpots.sort((a, b) => {
+            if (a.DISTANCE !== null && b.DISTANCE !== null) {
+                return a.DISTANCE - b.DISTANCE; 
+            }
+            return b.AVAILABLE - a.AVAILABLE;
+        });
+
+        renderParkingList(filteredSpots);
+        document.getElementById('status-text').innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
+
+    } catch (error) {
+        console.error("地理編碼異常，自動降級為純文字安全模糊搜尋", error);
+        const fallback = allParkingSpots.filter(spot => 
+            spot.POSITION.includes(keyword) || spot.ADDRESS.includes(keyword)
+        );
+        renderParkingList(fallback);
+    }
+}
+
+// 將資料渲染至網頁卡片面版
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
@@ -180,6 +200,17 @@ function renderParkingList(spots) {
             }
         }
 
+        // 計算並呈現精緻的距離提醒標籤
+        let distanceBadge = "";
+        if (spot.DISTANCE !== null && spot.DISTANCE !== undefined) {
+            const distKm = spot.DISTANCE / 1000;
+            const distText = spot.DISTANCE < 1000 
+                ? `${Math.round(spot.DISTANCE)} 公尺` 
+                : `${distKm.toFixed(1)} 公里`;
+            
+            distanceBadge = `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200"><i class="fa-solid fa-route"></i> 距離約 ${distText}</span>`;
+        }
+
         const sourceBadge = spot.IS_PREDICTED === true
             ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
             : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`;
@@ -194,10 +225,11 @@ function renderParkingList(spots) {
                         <i class="fa-solid fa-circle-info text-blue-400"></i> 收費：${spot.FARE_DESC}
                     </p>
 
-               <div class="flex gap-2 mt-2 items-center">
-    <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-    ${sourceBadge}
-    ${distanceBadge} </div>
+                    <div class="flex gap-2 mt-2 items-center flex-wrap">
+                        <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
+                        ${sourceBadge}
+                        ${distanceBadge} 
+                    </div>
                 </div>
                 <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
@@ -212,164 +244,11 @@ function renderParkingList(spots) {
     });
 }
 
-// 全新智慧搜尋：文字比對與座標距離雙軌制
-async function doAdvancedSearch() {
-    const keyword = document.getElementById('search-input').value.trim(); // 取得搜尋框文字
-    const listContainer = document.getElementById('parking-list');
-    
-    if (!keyword) {
-        // 如果沒輸入，就預設顯示前15筆
-        renderParkingList(allParkingSpots.slice(0, 15));
-        return;
+// 導航函數
+function navigate(lat, lon) {
+    if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
+        window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`);
+    } else {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`);
     }
-
-    document.getElementById('status-text').innerText = `🔍 正在搜尋 「${keyword}」 的周邊停車場...`;
-
-    try {
-        // 🌟 核心突破：利用 OpenStreetMap 免費解析地名成經緯度
-        const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}&limit=1`;
-        const geoResponse = await fetch(geoUrl, { headers: { 'Accept-Language': 'zh-TW' } });
-        const geoData = await geoResponse.json();
-
-        let targetLat = null;
-        let targetLon = null;
-
-        if (geoData && geoData.length > 0) {
-            targetLat = parseFloat(geoData[0].lat);
-            targetLon = parseFloat(geoData[0].lon);
-            console.log(`成功將地名 [${keyword}] 轉為座標:`, targetLat, targetLon);
-        }
-
-        // 開始對所有停車場進行篩選與距離計算
-        let searchResults = allParkingSpots.map(spot => {
-            let distance = null;
-            let matchScore = 0;
-
-            // 邏輯 A：如果有成功轉出座標，計算該停車場與目標地名的距離
-            if (targetLat !== null && targetLon !== null) {
-                distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
-            }
-
-            // 邏輯 B：傳統文字模糊比對
-            if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
-                spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
-                matchScore = 1; // 代表名字有中
-            }
-
-            return { ...spot, DISTANCE: distance, MATCH_TEXT: matchScore };
-        });
-
-        // 篩選條件：要麼名字裡有關鍵字，要麼距離目標地名 2.5 公里之內
-        let filteredSpots = searchResults.filter(spot => {
-            const isTextMatch = spot.MATCH_TEXT === 1;
-            const isNearMatch = spot.DISTANCE !== null && spot.DISTANCE <= 2500; // 2.5公里內
-            return isTextMatch || isNearMatch;
-        });
-
-        // 排序權重：如果有點位距離，由近到遠排序；其餘按剩餘車位排序
-        filteredSpots.sort((a, b) => {
-            if (a.DISTANCE !== null && b.DISTANCE !== null) {
-                return a.DISTANCE - b.DISTANCE; // 近的排前面
-            }
-            return b.AVAILABLE - a.AVAILABLE;
-        });
-
-        // 渲染結果
-        renderParkingList(filteredSpots);
-        document.getElementById('status-text').innerText = `🟢 搜尋完成！找到 ${filteredSpots.length} 個相關停車場。`;
-
-    } catch (error) {
-        console.error("地理編碼失敗，降級為純文字搜尋", error);
-        // 萬一 OSM API 斷線，降級回原本的純文字搜尋
-        const fallback = allParkingSpots.filter(spot => 
-            spot.POSITION.includes(keyword) || spot.ADDRESS.includes(keyword)
-        );
-        renderParkingList(fallback);
-    }
-}
-
-        // 語音辨識
-        function initSpeechRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("目前瀏覽器不支援語音辨識，請使用 Android Chrome 開啟！");
-                return null;
-            }
-            const rec = new SpeechRecognition();
-            rec.lang = 'zh-TW';
-            rec.continuous = false;
-            rec.interimResults = true;
-
-            rec.onresult = (event) => {
-                const resultText = document.getElementById('result-text');
-                let transcript = "";
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    transcript += event.results[i][0].transcript;
-                }
-                resultText.classList.remove('hidden');
-                resultText.innerText = `「 ${transcript} 」`;
-            };
-
-            rec.onend = () => {
-                const resultText = document.getElementById('result-text').innerText;
-                const queryLocation = resultText.replace(/[「」\s]/g, '');
-                if (queryLocation && queryLocation !== "請說出目的地..." && queryLocation !== "正在辨識中...") {
-                    document.getElementById('status-text').innerText = `已幫您語音搜尋「${queryLocation}」附近的停車場：`;
-                    searchParkingSpots(queryLocation); 
-                }
-                stopMicUI();
-            };
-            rec.onerror = () => { stopMicUI(); };
-            return rec;
-        }
-
-        function toggleVoiceSearch() {
-            if (!recognition) recognition = initSpeechRecognition();
-            if (!recognition) return;
-            if (!isRecording) { try { recognition.start(); startMicUI(); } catch (e) {} } 
-            else { recognition.stop(); stopMicUI(); }
-        }
-
-        function startMicUI() {
-            isRecording = true;
-            document.getElementById('mic-btn').classList.replace('bg-blue-600', 'bg-red-500');
-            document.getElementById('mic-btn').classList.add('recording-active');
-            document.getElementById('mic-icon').classList.replace('fa-microphone', 'fa-stop');
-            document.getElementById('mic-tip').innerText = "說完請再按一次";
-            document.getElementById('status-text').innerText = "正在聆聽中...";
-        }
-
-        function stopMicUI() {
-            isRecording = false;
-            document.getElementById('mic-btn').classList.replace('bg-red-500', 'bg-blue-600');
-            document.getElementById('mic-btn').classList.remove('recording-active');
-            document.getElementById('mic-icon').classList.replace('fa-stop', 'fa-microphone');
-            document.getElementById('mic-tip').innerText = "按我開始語音搜尋";
-        }
-
-        // Google Maps 導航
-        function navigate(lat, lng) {
-            if (!lat || !lng) {
-                alert("此停車場暫無定位資料");
-                return;
-            }
-            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
-        }
-    </script>
-</body>
-</html>
-// 計算兩點經緯度之間的實際距離 (單位：公尺)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // 地球半徑 (公尺)
-    const phi1 = lat1 * Math.PI / 180;
-    const phi2 = lat2 * Math.PI / 180;
-    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
-    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-              Math.cos(phi1) * Math.cos(phi2) *
-              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // 回傳公尺數
 }
