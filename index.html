@@ -1,3 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台中即時停車導航</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+        .recording-active {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
+
+    <header class="bg-blue-600 text-white shadow-md p-4 sticky top-0 z-50 flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <i class="fa-solid fa-square-p text-yellow-300 text-2xl"></i>
+            台中車位即時查
+        </h1>
+        <a href="https://traffic.taichung.gov.tw/" target="_blank" class="bg-blue-700 hover:bg-blue-800 text-xs py-1.5 px-3 rounded-full transition-all flex items-center gap-1">
+            <i class="fa-solid fa-globe"></i> 台中交通網
+        </a>
+    </header>
+
+    <main class="flex-1 p-4 pb-32 overflow-y-auto">
+        
+        <div class="bg-white rounded-xl p-3 shadow-sm mb-4 border border-gray-200">
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
+                    <input type="text" id="search-input" placeholder="打字輸入地名（如：馬卡龍、逢甲）..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                </div>
+                <button onclick="handleTextSearch()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg text-sm flex items-center gap-1.5 transition-all shadow-sm shrink-0">
+                    搜尋
+                </button>
+            </div>
+        </div>
+
+        <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
+            <p id="status-text" class="text-gray-600 font-medium">智慧停車系統已就緒！</p>
+            <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
+        </div>
+
+        <div class="space-y-3" id="parking-list">
+            <div class="text-center text-gray-500 py-8">正在啟動停車場模組...</div>
+        </div>
+    </main>
+
+    <div class="fixed bottom-6 left-0 right-0 flex flex-col items-center justify-center z-50 pointer-events-none">
+        <span id="mic-tip" class="bg-gray-800 text-white text-xs px-3 py-1 rounded-full shadow-md mb-2 pointer-events-auto font-medium">按我開始語音搜尋</span>
+        <button id="mic-btn" onclick="toggleVoiceSearch()" class="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 focus:outline-none">
+            <i id="mic-icon" class="fa-solid fa-microphone text-2xl"></i>
+        </button>
+    </div>
+
 <script>
 // ==========================================
 // 核心設定：請確認您的 Cloudflare Worker 網址
@@ -253,4 +314,6 @@ function navigate(lat, lon) {
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`);
     }
 }
-</script> ```
+</script>
+</body>
+</html>
