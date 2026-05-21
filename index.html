@@ -120,7 +120,8 @@ async function fetchTDXParkingData() {
                     ADDRESS: item.ADDRESS || item.CarParkAddress || item.Address || "台中市區域",
                     TOTAL: parseInt(item.TOTAL || item.TotalSpaces) || 100,
                     AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : (item.AvailableSpaces !== undefined ? item.AvailableSpaces : 0),
-                    IS_PREDICTED: item.IS_PREDICTED === true, // 🌟 成功將後端的清洗標籤存入前端變數！
+                    IS_PREDICTED: item.IS_PREDICTED === true, 
+                    FARE_DESC: item.FARE_DESC || "依現場公告費率為準", // 🌟 接收收費敘述
                     LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
                     LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
                 };
@@ -140,7 +141,7 @@ async function fetchTDXParkingData() {
     }
 }
         
-// 將資料渲染至網頁卡片（完美識別大數據智慧預估版）
+// 將資料渲染至網頁卡片（逢甲優化＋新增收費描述版）
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
@@ -153,14 +154,12 @@ function renderParkingList(spots) {
     spots.forEach(spot => {
         let countColor = "text-green-600 font-black";
         let bgColor = "border-gray-200";
-        let fontStyle = ""; // 用來控制字體斜體
+        let fontStyle = ""; 
         
-        // 1. 判斷是否為經過 Worker 清洗的「大數據智慧預估」資料
         if (spot.IS_PREDICTED === true) {
-            countColor = "text-amber-500 font-extrabold"; // 🌟 強制換成質感的暖橘色
-            fontStyle = "italic"; // 🌟 加上帥氣的斜體字
+            countColor = "text-amber-500 font-extrabold"; 
+            fontStyle = "italic"; 
         } else {
-            // 2. 如果是正常的官方即時車位，維持你原本的紅黃綠燈判斷
             if (spot.AVAILABLE <= 0) {
                 countColor = "text-red-500 font-black";
                 bgColor = "bg-red-50 border-red-100";
@@ -169,16 +168,20 @@ function renderParkingList(spots) {
             }
         }
 
-        // 建立資料來源小標籤
         const sourceBadge = spot.IS_PREDICTED === true
             ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
             : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`;
 
         const cardHtml = `
-            <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center">
+            <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
                     <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
                     <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${spot.ADDRESS}</p>
+                    
+                    <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-100">
+                        <i class="fa-solid fa-circle-info text-blue-400"></i> 收費：${spot.FARE_DESC}
+                    </p>
+
                     <div class="flex gap-2 mt-2 items-center">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
                         ${sourceBadge}
