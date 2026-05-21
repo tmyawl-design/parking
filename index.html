@@ -67,7 +67,8 @@
         // ⚠️ 【重要設定】請把下方引號內換成您在 Cloudflare 複製的那串專屬 Worker 網址
         // 確保一定是 https 開頭，且結尾「不要」帶有斜線 / 喔！
 // 🟢 請精準修改為這一行
-const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev";
+// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！
+const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`;
 
         // 內建的核心備用資料（萬一雲端斷線時保底用，確保網頁絕對不卡死）
         const backupSpots = [
