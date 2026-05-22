@@ -161,7 +161,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 🚀 終極地標精準綁定核心：完美解決 LaLaport、科博館、海洋館、后豐鐵馬道失效問題
+// 🚀 Google Maps 級智慧檢索核心：完美校正 LaLaport、科博館、海洋館、后豐鐵馬道
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -169,33 +169,29 @@ async function doAdvancedSearch() {
     if (!keyword) { renderParkingList(allParkingSpots.slice(0, 15)); return; }
 
     const statusEl = document.getElementById('status-text');
-    if (statusEl) statusEl.innerText = `🔍 正在智慧精準檢索 「${keyword}」...`;
+    if (statusEl) statusEl.innerText = `🔍 正在智慧檢索 「${keyword}」 的周邊車位...`;
 
     let targetLat = null, targetLon = null;
-    let exactKeywords = []; // 專屬保送停車場名字名單
+    let exactKeywords = []; // 該地標專屬的保送停車場關鍵字
 
     const lowerKey = keyword.toLowerCase();
 
-    // 🎯 核心大手術：地標專屬停車場精準綁定矩陣
+    // 🎯 1. 景點特例攔截（直接導正 Google 座標軸心與綁定專屬車位）
     if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
-        targetLat = 24.1354; targetLon = 120.6934;
-        // LaLaport 周邊最對、最近的官方公有車位名稱
-        exactKeywords = ["泉源", "sugar", "忠孝P", "干城", "南京立體"];
-    } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園")) {
-        targetLat = 24.1557; targetLon = 120.6660;
-        // 科博館與勤美綠園道周邊最精準的公有停車場名稱
-        exactKeywords = ["博館", "植物園", "西屯路", "民龍", "草悟道", "忠明P"];
-    } else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館") || lowerKey.includes("梧棲漁港")) {
-        targetLat = 24.3121; targetLon = 120.5463;
-        // 台中海洋館與高美濕地周邊海線正式車位名稱
-        exactKeywords = ["高美", "清水", "港區"];
-    } else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("豐原") || lowerKey.includes("后里")) {
-        targetLat = 24.2751; targetLon = 120.7303;
-        // 后豐鐵馬道起點與后里馬場周邊最精準的停車場名稱
-        exactKeywords = ["后里", "馬場", "豐原", "葫蘆墩", "新平"];
+        targetLat = 24.1354; targetLon = 120.6934; // LaLaport 東區精確中心
+        exactKeywords = ["泉源", "sugar", "忠孝", "干城", "南京立體", "東區"];
+    } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園") || lowerKey.includes("勤美")) {
+        targetLat = 24.1557; targetLon = 120.6660; // 科博館精確中心
+        exactKeywords = ["博館", "植物園", "西屯路", "民龍", "草悟道", "忠明", "北區"];
+    } else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館") || lowerKey.includes("高美")) {
+        targetLat = 24.3121; targetLon = 120.5463; // 高美/海生館清水精確中心
+        exactKeywords = ["高美", "清水", "港區", "美堤"];
+    } else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("馬場")) {
+        targetLat = 24.2751; targetLon = 120.7303; // 后豐鐵馬道/后里馬場中心
+        exactKeywords = ["后里", "馬場", "豐原", "葫蘆墩", "新平", "國道四號"];
     }
 
-    // 若不在特例地標裡，才走一般 OSM API 查詢經緯度
+    // 若不是四大魔王景點，才走一般的免費 OpenStreetMap API
     if (targetLat === null && targetLon === null) {
         try {
             const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
@@ -207,12 +203,13 @@ async function doAdvancedSearch() {
                     targetLon = parseFloat(geoData[0].lon);
                 }
             }
-        } catch (e) { console.log("地理解碼連線異常"); }
+        } catch (e) { console.log("地理解碼網路異常"); }
     }
 
-    // 遍歷比對所有停車場資料並計算權重評分
+    // 🎯 2. 計算權重與距離（比照 Google 關聯度排序）
     let searchResults = allParkingSpots.map(spot => {
         let distance = null;
+        // 計算停車場與「目標景點中心點」的真實物理距離
         if (targetLat !== null && targetLon !== null) {
             distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
         } else if (hasValidUserLocation) {
@@ -224,29 +221,24 @@ async function doAdvancedSearch() {
         const lowerAddr = spot.ADDRESS.toLowerCase();
         const lowerKeyword = keyword.toLowerCase();
 
-        // 1. 如果名字直接由關鍵字開頭，得最高分 (5分)
+        // 評分機制：
         if (lowerName.startsWith(lowerKeyword)) {
-            matchScore = 5;
-        } 
-        // 2. 如果名字或地址裡包含輸入的字，得高分 (4分)
-        else if (lowerName.includes(lowerKeyword) || lowerAddr.includes(lowerKeyword)) {
-            matchScore = 4;
-        } 
-        // 3. 🔥 核心強化：如果命中了「地標專屬保送名單」，直接給予高權重分 (3分)
-        else if (exactKeywords.length > 0) {
-            const isExactMatch = exactKeywords.some(key => lowerName.includes(key.toLowerCase()) || lowerAddr.includes(key.toLowerCase()));
-            if (isExactMatch) {
-                matchScore = 3;
-            }
+            matchScore = 5; // 名字開頭一模一樣 (最高分)
+        } else if (lowerName.includes(lowerKeyword) || lowerAddr.includes(lowerKeyword)) {
+            matchScore = 4; // 名字或地址包含關鍵字
+        } else if (exactKeywords.length > 0) {
+            // 🔥 核心補強：如果命中地標專屬名單（例如搜科博館命中"博館路"、"植物園"），強制給予高分保送！
+            const isExact = exactKeywords.some(key => lowerName.includes(key.toLowerCase()) || lowerAddr.includes(key.toLowerCase()));
+            if (isExact) matchScore = 3;
         }
 
         return { ...spot, DISTANCE: distance, MATCH_SCORE: matchScore };
     });
 
-    // 篩選：只要名字有中（MATCH_SCORE > 0）或者 距離目標中心點 3 公里內的所有停車場通通列出來！
-    let filteredSpots = searchResults.filter(spot => spot.MATCH_SCORE > 0 || (spot.DISTANCE !== null && spot.DISTANCE <= 3000));
+    // 🎯 3. 仿 Google 篩選門檻：只要名字有關聯（MATCH_SCORE > 0）或是「物理距離在目標景點 3.5 公里內」通通放行！
+    let filteredSpots = searchResults.filter(spot => spot.MATCH_SCORE > 0 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500));
     
-    // 智慧排序：分數高（地標專屬或有關聯）的絕對排前面 -> 其次按距離由近到遠 -> 最後才比剩餘車位
+    // 🎯 4. 智慧排序：命名相關度最高（保送名單）絕對排最前 -> 其次依照離景點的距離由近到遠排序
     filteredSpots.sort((a, b) => {
         if (b.MATCH_SCORE !== a.MATCH_SCORE) return b.MATCH_SCORE - a.MATCH_SCORE; 
         if (a.DISTANCE !== null && b.DISTANCE !== null) return a.DISTANCE - b.DISTANCE; 
@@ -254,7 +246,7 @@ async function doAdvancedSearch() {
     });
 
     renderParkingList(filteredSpots);
-    if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳停車推薦。`;
+    if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳停車場推薦。`;
 }
 
 function renderParkingList(spots) {
