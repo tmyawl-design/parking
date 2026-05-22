@@ -174,31 +174,59 @@ async function doAdvancedSearch() {
     if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
 }
 
+// 介面渲染：完美補回 🤖 大數據預估（橘標）與 ⚡ 官方即時（綠標）色塊
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     if (!listContainer) return;
     listContainer.innerHTML = ""; 
+
     if (!spots || spots.length === 0) {
         listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場 😢</div>`;
         return;
     }
+
     spots.forEach(spot => {
-        let countColor = spot.AVAILABLE <= 0 ? "text-red-500 font-black" : (spot.AVAILABLE < 10 ? "text-yellow-600 font-black" : "text-green-600 font-black");
+        // 1. 根據剩餘車位數量決定數字顏色
+        let countColor = "text-green-600 font-black";
+        let bgColor = "border-gray-200";
+        let fontStyle = ""; 
+        
+        if (spot.IS_PREDICTED === true) {
+            // 如果是大數據預估，數字呈現稍微斜體強調
+            countColor = "text-amber-500 font-extrabold"; 
+            fontStyle = "italic"; 
+        } else {
+            if (spot.AVAILABLE <= 0) {
+                countColor = "text-red-500 font-black";
+                bgColor = "bg-red-50 border-red-100";
+            } else if (spot.AVAILABLE < 10) {
+                countColor = "text-yellow-600 font-black";
+            }
+        }
+
+        // 2. 組合卡片 HTML，動態塞入「大數據預估」或「官方即時連線」色塊
         const cardHtml = `
-            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200 flex justify-between items-center mb-3">
+            <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
                     <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
                     <p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS}</p>
                     <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費：${spot.FARE_DESC}</p>
+                    
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
+                        
+                        ${spot.IS_PREDICTED === true
+                            ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
+                            : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`
+                        }
+                        
                         ${spot.DISTANCE ? `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200">距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>` : ''} 
                     </div>
                 </div>
                 <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
-                    <div class="text-2xl ${countColor}">${spot.AVAILABLE}</div>
-                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs">導航</button>
+                    <div class="text-2xl ${countColor} ${fontStyle}">${spot.AVAILABLE}</div>
+                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs shadow-sm">導航</button>
                 </div>
             </div>
         `;
