@@ -60,15 +60,11 @@
     </div>
 
     <script>
-        let isRecording = false;
-        let recognition = null;
-        let allParkingSpots = []; 
-
-// ==========================================
+ // ==========================================
 // 核心設定：請確認您的 Cloudflare Worker 網址
+// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！
 // ==========================================
-// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！        
-const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}"; 
+const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`; 
 
 let allParkingSpots = []; // 儲存後端抓回來的所有車位資料
 let backupSpots = [];     // 備用核心資料庫
@@ -297,7 +293,7 @@ function renderParkingList(spots) {
     });
 }
 
-// 導航函數 (🌟 完美修正版)
+// 導航函數 (🌟 完美精準修復版)
 function navigate(lat, lon) {
     if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
         window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`);
@@ -305,5 +301,6 @@ function navigate(lat, lon) {
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`);
     }
 }
+    <script> 
 </body>
 </html>
