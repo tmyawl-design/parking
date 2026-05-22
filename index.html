@@ -161,6 +161,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// 🚀 智慧地標修正攔截核心：修正 API 誤判 LaLaport、科博館、高美、后豐的問題
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -171,55 +172,92 @@ async function doAdvancedSearch() {
     if (statusEl) statusEl.innerText = `🔍 正在智慧檢索 「${keyword}」...`;
 
     let targetLat = null, targetLon = null;
-    try {
-        const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
-        const geoResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`);
-        if (geoResponse.ok) {
-            const geoData = await geoResponse.json();
-            if (geoData && geoData.length > 0) {
-                targetLat = parseFloat(geoData[0].lat);
-                targetLon = parseFloat(geoData[0].lon);
-            }
-        }
-    } catch (e) {}
+    let fallbackKeyword = ""; // 強制關聯字（例如搜科博館，強制比對"博館"或"西屯"）
 
+    // 🎯 核心補強：地標特例字典（直接校正中心點座標與綁定停車場）
+    const lowerKey = keyword.toLowerCase();
+    if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
+        // LaLaport 在東區，直接鎖定東區中心點，並強制關聯周邊（如干城、建國、新民）
+        targetLat = 24.1354;
+        targetLon = 120.6934;
+        fallbackKeyword = "東區";
+    } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學")) {
+        // 科博館在北區，強制給予正確座標，並將附近"博館路"、"西屯路"、"民權"、"勤美"、"草悟道"納入關聯
+        targetLat = 24.1557;
+        targetLon = 120.6660;
+        fallbackKeyword = "博館"; 
+    } else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館")) {
+        // 台中海洋館在清水區海線
+        targetLat = 24.3121;
+        targetLon = 120.5463;
+        fallbackKeyword = "清水區";
+    } else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("后里馬場")) {
+        // 后豐鐵馬道起終點（后里區/豐原區交界）
+        targetLat = 24.2751;
+        targetLon = 120.7303;
+        fallbackKeyword = "后里";
+    }
+
+    // 若不在特例字典裡，才走一般 Nominatim API 查詢
+    if (targetLat === null && targetLon === null) {
+        try {
+            const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
+            const geoResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`);
+            if (geoResponse.ok) {
+                const geoData = await geoResponse.json();
+                if (geoData && geoData.length > 0) {
+                    targetLat = parseFloat(geoData[0].lat);
+                    targetLon = parseFloat(geoData[0].lon);
+                }
+            }
+        } catch (e) { console.log("地理解碼連線異常"); }
+    }
+
+    // 遍歷比對所有停車場資料
     let searchResults = allParkingSpots.map(spot => {
         let distance = null;
-        // 只有在起點與終點都合法的情況下，才計算真實距離
         if (targetLat !== null && targetLon !== null) {
             distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
         } else if (hasValidUserLocation) {
             distance = calculateDistance(userLat, userLon, spot.LATITUDE, spot.LONGITUDE);
         }
 
-        // 🌟 核心改進：建立「精準度權重評分機制」
+        // 🌟 重新設計特例環境下的評分權重
         let matchScore = 0; 
         const lowerName = spot.POSITION.toLowerCase();
+        const lowerAddr = spot.ADDRESS.toLowerCase();
         const lowerKeyword = keyword.toLowerCase();
 
+        // A. 名字開頭或直接含有輸入字（最準，得 5 分）
         if (lowerName.startsWith(lowerKeyword)) {
-            matchScore = 3; // 名字開頭完全吻合（例如輸入中友，中友大誠P得3分）
-        } else if (lowerName.includes(lowerKeyword) || spot.ADDRESS.toLowerCase().includes(lowerKeyword)) {
-            matchScore = 2; // 名字包含關鍵字（得2分）
-        } else if (lowerKeyword === "高美濕地" && spot.ADDRESS.includes("清水區")) {
-            matchScore = 1; // 模糊行政區關聯（得1分）
+            matchScore = 5;
+        } else if (lowerName.includes(lowerKeyword) || lowerAddr.includes(lowerKeyword)) {
+            matchScore = 4;
+        } 
+        // B. 特例攔截關聯（例如輸入科博館，停車場名稱叫"博館路P"或地址有"西屯路"，得 3 分）
+        else if (fallbackKeyword && (lowerName.includes(fallbackKeyword) || lowerAddr.includes(fallbackKeyword))) {
+            matchScore = 3;
+        }
+        // C. 高美濕地/海生館等海線行政區模糊匹配
+        else if ((lowerKeyword.includes("高美") || lowerKeyword.includes("海洋")) && lowerAddr.includes("清水區")) {
+            matchScore = 2;
         }
 
         return { ...spot, DISTANCE: distance, MATCH_SCORE: matchScore };
     });
 
-    // 🌟 核心改進：只要名字有中（MATCH_SCORE > 0），就「不強制受到 5 公里限制」，直接保送清單！
-    let filteredSpots = searchResults.filter(spot => spot.MATCH_SCORE > 0 || (spot.DISTANCE !== null && spot.DISTANCE <= 5000));
+    // 🌟 過濾：名字有關聯（MATCH_SCORE > 0）或者 距離目標中心點 3.5 公里內的所有停車場通通放進來！
+    let filteredSpots = searchResults.filter(spot => spot.MATCH_SCORE > 0 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500));
     
-    // 🌟 核心改進：重新設計權重排序
+    // 智慧排序：分數高（關聯強）的排前面 -> 其次按距離近到遠 -> 最後才比剩餘車位
     filteredSpots.sort((a, b) => {
-        if (b.MATCH_SCORE !== a.MATCH_SCORE) return b.MATCH_SCORE - a.MATCH_SCORE; // 命名精準度最高的絕對排第一
-        if (a.DISTANCE !== null && b.DISTANCE !== null) return a.DISTANCE - b.DISTANCE; // 其次按距離由近到遠
-        return b.AVAILABLE - a.AVAILABLE; // 最後才比剩餘車位
+        if (b.MATCH_SCORE !== a.MATCH_SCORE) return b.MATCH_SCORE - a.MATCH_SCORE; 
+        if (a.DISTANCE !== null && b.DISTANCE !== null) return a.DISTANCE - b.DISTANCE; 
+        return b.AVAILABLE - a.AVAILABLE; 
     });
 
     renderParkingList(filteredSpots);
-    if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」的最佳停車推薦。`;
+    if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳停車推薦。`;
 }
 
 function renderParkingList(spots) {
