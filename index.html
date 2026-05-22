@@ -161,7 +161,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 🚀 Google Maps 級智慧檢索核心：完美校正 LaLaport、科博館、海洋館、后豐鐵馬道
+// 🚀 頂級智慧搜尋核心：加入「在地人優先推薦停車場」保送矩陣
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -172,26 +172,47 @@ async function doAdvancedSearch() {
     if (statusEl) statusEl.innerText = `🔍 正在智慧檢索 「${keyword}」 的周邊車位...`;
 
     let targetLat = null, targetLon = null;
-    let exactKeywords = []; // 該地標專屬的保送停車場關鍵字
+    let exactKeywords = [];
+    let prioritySpots = []; // 🌟 在地人優先推薦的硬核保送名單
 
     const lowerKey = keyword.toLowerCase();
 
-    // 🎯 1. 景點特例攔截（直接導正 Google 座標軸心與綁定專屬車位）
+    // 🎯 景點特例攔截 ＋ 在地人優先停車場矩陣
     if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
-        targetLat = 24.1354; targetLon = 120.6934; // LaLaport 東區精確中心
+        targetLat = 24.1354; targetLon = 120.6934;
         exactKeywords = ["泉源", "sugar", "忠孝", "干城", "南京立體", "東區"];
-    } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園") || lowerKey.includes("勤美")) {
-        targetLat = 24.1557; targetLon = 120.6660; // 科博館精確中心
+    } 
+    else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園") || lowerKey.includes("勤美")) {
+        targetLat = 24.1557; targetLon = 120.6660; // 科博館中心
         exactKeywords = ["博館", "植物園", "西屯路", "民龍", "草悟道", "忠明", "北區"];
-    } else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館") || lowerKey.includes("高美")) {
-        targetLat = 24.3121; targetLon = 120.5463; // 高美/海生館清水精確中心
+        
+        // 🌟 優先保送：強制將科博館最正統的三個停車場改寫並排在最前面
+        prioritySpots = [
+            { POSITION: "⭐ 科博館第一/第二停車場 (博館西屯路)", ADDRESS: "台中市北區博館路 / 西屯路口 (正門旁)", TOTAL: 180, AVAILABLE: "請見現場", IS_PREDICTED: true, FARE_DESC: "每小時 30 元（科博館主要車場）", LATITUDE: 24.1561, LONGITUDE: 120.6645, IS_PRIORITY: true },
+            { POSITION: "⭐ 科博館第三停車場 (植物園停車場)", ADDRESS: "台中市北區西屯路一段 (植物園後方)", TOTAL: 154, AVAILABLE: "請見現場", IS_PREDICTED: true, FARE_DESC: "每小時 30 元（離植物園最近）", LATITUDE: 24.1593, LONGITUDE: 120.6662, IS_PRIORITY: true }
+        ];
+    } 
+    else if (lowerKey.includes("中友") || lowerKey.includes("一中") || lowerKey.includes("益民")) {
+        targetLat = 24.1528; targetLon = 120.6844; // 中友百貨中心
+        exactKeywords = ["大誠", "五權立體", "玉雪", "新興", "北區"];
+        
+        // 🌟 優先保送：強制把中友百貨附設與你指定的玉雪、五權立體改寫在最前排
+        prioritySpots = [
+            { POSITION: "⭐ 中友百貨附設停車場 (B4、B5)", ADDRESS: "台中市北區三民路三段161號 (百貨地下室)", TOTAL: 450, AVAILABLE: "請見現場", IS_PREDICTED: true, FARE_DESC: "每小時 50-60 元，消費可折抵", LATITUDE: 24.1528, LONGITUDE: 120.6844, IS_PRIORITY: true },
+            { POSITION: "⭐ 玉雪民營停車場 (一中旁)", ADDRESS: "台中市北區育才北路與雙十路口附近", TOTAL: 120, AVAILABLE: "請見現場", IS_PREDICTED: true, FARE_DESC: "平假日收費依現場公告為準", LATITUDE: 24.1521, LONGITUDE: 120.6872, IS_PRIORITY: true },
+            { POSITION: "⭐ 五權公有立體停車場", ADDRESS: "台中市北區五權路499號", TOTAL: 340, AVAILABLE: "連線加載中", IS_PREDICTED: false, FARE_DESC: "每小時 30 元（一中商圈大推薦）", LATITUDE: 24.1554, LONGITUDE: 120.6811, IS_PRIORITY: true }
+        ];
+    }
+    else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館") || lowerKey.includes("高美")) {
+        targetLat = 24.3121; targetLon = 120.5463;
         exactKeywords = ["高美", "清水", "港區", "美堤"];
-    } else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("馬場")) {
-        targetLat = 24.2751; targetLon = 120.7303; // 后豐鐵馬道/后里馬場中心
+    } 
+    else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("馬場")) {
+        targetLat = 24.2751; targetLon = 120.7303;
         exactKeywords = ["后里", "馬場", "豐原", "葫蘆墩", "新平", "國道四號"];
     }
 
-    // 若不是四大魔王景點，才走一般的免費 OpenStreetMap API
+    // 若不是特例景點，走一般 OSM 查詢
     if (targetLat === null && targetLon === null) {
         try {
             const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
@@ -203,13 +224,12 @@ async function doAdvancedSearch() {
                     targetLon = parseFloat(geoData[0].lon);
                 }
             }
-        } catch (e) { console.log("地理解碼網路異常"); }
+        } catch (e) {}
     }
 
-    // 🎯 2. 計算權重與距離（比照 Google 關聯度排序）
+    // 遍歷即時資料庫並計算權重
     let searchResults = allParkingSpots.map(spot => {
         let distance = null;
-        // 計算停車場與「目標景點中心點」的真實物理距離
         if (targetLat !== null && targetLon !== null) {
             distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
         } else if (hasValidUserLocation) {
@@ -221,29 +241,35 @@ async function doAdvancedSearch() {
         const lowerAddr = spot.ADDRESS.toLowerCase();
         const lowerKeyword = keyword.toLowerCase();
 
-        // 評分機制：
         if (lowerName.startsWith(lowerKeyword)) {
-            matchScore = 5; // 名字開頭一模一樣 (最高分)
+            matchScore = 5;
         } else if (lowerName.includes(lowerKeyword) || lowerAddr.includes(lowerKeyword)) {
-            matchScore = 4; // 名字或地址包含關鍵字
+            matchScore = 4;
         } else if (exactKeywords.length > 0) {
-            // 🔥 核心補強：如果命中地標專屬名單（例如搜科博館命中"博館路"、"植物園"），強制給予高分保送！
             const isExact = exactKeywords.some(key => lowerName.includes(key.toLowerCase()) || lowerAddr.includes(key.toLowerCase()));
             if (isExact) matchScore = 3;
         }
 
-        return { ...spot, DISTANCE: distance, MATCH_SCORE: matchScore };
+        return { ...spot, DISTANCE: distance, MATCH_SCORE: matchScore, IS_PRIORITY: false };
     });
 
-    // 🎯 3. 仿 Google 篩選門檻：只要名字有關聯（MATCH_SCORE > 0）或是「物理距離在目標景點 3.5 公里內」通通放行！
+    // 篩選與排序即時車位
     let filteredSpots = searchResults.filter(spot => spot.MATCH_SCORE > 0 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500));
-    
-    // 🎯 4. 智慧排序：命名相關度最高（保送名單）絕對排最前 -> 其次依照離景點的距離由近到遠排序
     filteredSpots.sort((a, b) => {
         if (b.MATCH_SCORE !== a.MATCH_SCORE) return b.MATCH_SCORE - a.MATCH_SCORE; 
         if (a.DISTANCE !== null && b.DISTANCE !== null) return a.DISTANCE - b.DISTANCE; 
         return b.AVAILABLE - a.AVAILABLE; 
     });
+
+    // 🌟 核心進化：將我們手動寫死的「硬核優先保送名單」與計算好距離的即時清單強行結合！
+    // 優先推薦的停車場永遠釘在最頂部 (Top Placement)
+    if (prioritySpots.length > 0) {
+        prioritySpots = prioritySpots.map(spot => {
+            let dist = (targetLat && targetLon) ? calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE) : null;
+            return { ...spot, DISTANCE: dist };
+        });
+        filteredSpots = [...prioritySpots, ...filteredSpots];
+    }
 
     renderParkingList(filteredSpots);
     if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳停車場推薦。`;
@@ -261,10 +287,13 @@ function renderParkingList(spots) {
 
     spots.forEach(spot => {
         let countColor = "text-green-600 font-black";
-        let bgColor = "border-gray-200";
+        let bgColor = spot.IS_PRIORITY ? "border-blue-300 bg-gradient-to-r from-blue-50/50 to-white" : "border-gray-200";
         let fontStyle = ""; 
         
-        if (spot.IS_PREDICTED === true) {
+        // 判斷車位顯示顏色與樣式
+        if (spot.IS_PRIORITY) {
+            countColor = "text-blue-600 font-extrabold";
+        } else if (spot.IS_PREDICTED === true) {
             countColor = "text-amber-500 font-extrabold"; 
             fontStyle = "italic"; 
         } else {
@@ -276,7 +305,6 @@ function renderParkingList(spots) {
             }
         }
 
-        // 🛡️ 距離安全防護：如果算出來的距離大於 120 公里（代表定位異常），直接隱藏不顯示，防範 160.5 公里的突兀畫面
         let distanceStr = "";
         if (spot.DISTANCE && spot.DISTANCE < 120000) {
             distanceStr = `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200">距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>`;
@@ -291,16 +319,18 @@ function renderParkingList(spots) {
                     
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-                        ${spot.IS_PREDICTED === true
-                            ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
-                            : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`
+                        ${spot.IS_PRIORITY 
+                            ? `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-blue-300">🔥 在地首選推薦</span>`
+                            : (spot.IS_PREDICTED === true
+                                ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
+                                : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`)
                         }
                         ${distanceStr} 
                     </div>
                 </div>
-                <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
+                <div class="text-right flex flex-col items-end gap-1 min-w-[95px]">
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
-                    <div class="text-2xl ${countColor} ${fontStyle}">${spot.AVAILABLE}</div>
+                    <div class="${typeof spot.AVAILABLE === 'number' ? 'text-2xl' : 'text-sm'} ${countColor} ${fontStyle}">${spot.AVAILABLE}</div>
                     <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs shadow-sm">導航</button>
                 </div>
             </div>
