@@ -64,17 +64,46 @@
 const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`; 
 let allParkingSpots = []; 
 
-// 🛡️ 在地安全備用資料庫（當雲端超時，5秒內自動啟用，絕對不卡死！）
+// 預設台中中心點座標（當使用者未開啟 GPS 定位時，以此為基準計算，防範 160 公里錯誤）
+const TAICHUNG_CENTER_LAT = 24.1618;
+const TAICHUNG_CENTER_LON = 120.6468;
+
+let userLat = TAICHUNG_CENTER_LAT;
+let userLon = TAICHUNG_CENTER_LON;
+let hasValidUserLocation = false; // 是否成功取得使用者真實 GPS
+
+// 🛡️ 在地安全備用資料庫
 const backupSpots = [
     { POSITION: "台中車站地下停車場", ADDRESS: "台中市東區臺灣大道一段1號", TOTAL: 300, AVAILABLE: 125, IS_PREDICTED: true, FARE_DESC: "每小時 30 元", LATITUDE: 24.1372, LONGITUDE: 120.6856 },
-    { POSITION: "中友百貨大誠停車場", ADDRESS: "台中市北區分區三民路三段161號", TOTAL: 250, AVAILABLE: 45, IS_PREDICTED: true, FARE_DESC: "每小時 50 元", LATITUDE: 24.1528, LONGITUDE: 120.6844 },
-    { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "台中市西屯區朝富路30號", TOTAL: 180, AVAILABLE: 88, IS_PREDICTED: true, FARE_DESC: "每小時 20 元", LATITUDE: 24.1674, LONGITUDE: 120.6394 }
+    { POSITION: "中友百貨大誠停車場", ADDRESS: "台中市北區三民路三段161號", TOTAL: 250, AVAILABLE: 45, IS_PREDICTED: true, FARE_DESC: "每小時 50 元", LATITUDE: 24.1528, LONGITUDE: 120.6844 },
+    { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "台中市西屯區朝富路30號", TOTAL: 180, AVAILABLE: 88, IS_PREDICTED: true, FARE_DESC: "每小時 20 元", LATITUDE: 24.1674, LONGITUDE: 120.6394 },
+    { POSITION: "高美濕地第一停車場", ADDRESS: "台中市清水區美堤街", TOTAL: 120, AVAILABLE: 42, IS_PREDICTED: true, FARE_DESC: "每次 50 元", LATITUDE: 24.3122, LONGITUDE: 120.5507 }
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 [內嵌腳本] 成功啟動！");
+    console.log("🚀 [系統啟動] 開始嘗試獲取瀏覽器定位...");
+    getUserLocation();
     fetchTDXParkingData();
 });
+
+// 取得瀏覽器真實定位
+function getUserLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                userLat = position.coords.latitude;
+                userLon = position.coords.longitude;
+                hasValidUserLocation = true;
+                console.log(`📍 成功取得 GPS 定位: ${userLat}, ${userLon}`);
+                if (allParkingSpots.length > 0) doAdvancedSearch(); // 重新計算距離
+            },
+            (error) => {
+                console.warn("⚠️ 無法取得瀏覽器定位，將採用台中市中心作為基準點。");
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    }
+}
 
 function handleTextSearch() { doAdvancedSearch(); }
 
@@ -97,7 +126,7 @@ async function fetchTDXParkingData() {
     const statusEl = document.getElementById('status-text');
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超時防護
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         const dataResponse = await fetch(MY_WORKER_URL, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -114,8 +143,8 @@ async function fetchTDXParkingData() {
                 AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : 0,
                 IS_PREDICTED: item.IS_PREDICTED === true, 
                 FARE_DESC: item.FARE_DESC || "依現場公告為準", 
-                LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
-                LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
+                LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1618,
+                LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6468
             }));
             allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
             if (statusEl) statusEl.innerText = `🟢 同步成功！已載入 ${allParkingSpots.length} 個即時車位。`;
@@ -139,6 +168,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// 強化版搜尋核心：整合地理座標 ＋ 文字模糊雙軌防禦
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -149,6 +179,8 @@ async function doAdvancedSearch() {
     if (statusEl) statusEl.innerText = `🔍 正在計算 「${keyword}」 的周邊車位與距離...`;
 
     let targetLat = null, targetLon = null;
+    
+    // 步驟 A：嘗試透過地理解碼查詢景點座標
     try {
         const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
         const geoResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`);
@@ -159,22 +191,47 @@ async function doAdvancedSearch() {
                 targetLon = parseFloat(geoData[0].lon);
             }
         }
-    } catch (e) {}
+    } catch (e) { console.log("地理解碼連線異常"); }
 
+    // 步驟 B：遍歷比對所有停車場資料
     let searchResults = allParkingSpots.map(spot => {
-        let distance = (targetLat !== null && targetLon !== null) ? calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE) : null;
-        let matchText = (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) ? 1 : 0;
+        let distance = null;
+        
+        // 優先計算相對於搜尋目標景點的距離
+        if (targetLat !== null && targetLon !== null) {
+            distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
+        } else if (hasValidUserLocation) {
+            // 如果查不到景點座標（如高美濕地），但有使用者 GPS，則計算與使用者的距離
+            distance = calculateDistance(userLat, userLon, spot.LATITUDE, spot.LONGITUDE);
+        }
+
+        // 文字模糊搜尋（解決高美濕地、馬卡龍等本土詞彙查不到座標的問題）
+        let matchText = 0;
+        const lowerKeyword = keyword.toLowerCase();
+        // 擴大匹配範圍，包含區域字眼（如搜尋高美，能比對到清水區的停車場）
+        if (spot.POSITION.toLowerCase().includes(lowerKeyword) || 
+            spot.ADDRESS.toLowerCase().includes(lowerKeyword) ||
+            (lowerKeyword === "高美濕地" && spot.ADDRESS.includes("清水區"))) {
+            matchText = 1; 
+        }
+
         return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
     });
 
-    let filteredSpots = searchResults.filter(spot => spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500));
-    filteredSpots.sort((a, b) => (a.DISTANCE !== null && b.DISTANCE !== null) ? a.DISTANCE - b.DISTANCE : b.AVAILABLE - a.AVAILABLE);
+    // 步驟 C：過濾條件（字串符合，或者是在目標景點 5 公里範圍內）
+    let filteredSpots = searchResults.filter(spot => spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 5000));
+    
+    // 步驟 D：智慧排序
+    filteredSpots.sort((a, b) => {
+        if (a.MATCH_TEXT !== b.MATCH_TEXT) return b.MATCH_TEXT - a.MATCH_TEXT; // 名字有關聯的絕對優先排最前面
+        if (a.DISTANCE !== null && b.DISTANCE !== null) return a.DISTANCE - b.DISTANCE; // 接著按距離近到遠排序
+        return b.AVAILABLE - a.AVAILABLE;
+    });
 
     renderParkingList(filteredSpots);
     if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
 }
 
-// 介面渲染：完美補回 🤖 大數據預估（橘標）與 ⚡ 官方即時（綠標）色塊
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     if (!listContainer) return;
@@ -186,13 +243,11 @@ function renderParkingList(spots) {
     }
 
     spots.forEach(spot => {
-        // 1. 根據剩餘車位數量決定數字顏色
         let countColor = "text-green-600 font-black";
         let bgColor = "border-gray-200";
         let fontStyle = ""; 
         
         if (spot.IS_PREDICTED === true) {
-            // 如果是大數據預估，數字呈現稍微斜體強調
             countColor = "text-amber-500 font-extrabold"; 
             fontStyle = "italic"; 
         } else {
@@ -204,7 +259,6 @@ function renderParkingList(spots) {
             }
         }
 
-        // 2. 組合卡片 HTML，動態塞入「大數據預估」或「官方即時連線」色塊
         const cardHtml = `
             <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
@@ -238,6 +292,7 @@ function navigate(lat, lon) {
     if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
         window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`, '_blank');
     } else {
+        // 修正 ${lat} 格式，確保點擊導航時 100% 跳轉至正確的 Google 地圖座標
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`, '_blank');
     }
 }
