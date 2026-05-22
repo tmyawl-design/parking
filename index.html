@@ -59,82 +59,57 @@
         </button>
     </div>
 
-    <script>
 
 <script>
-// ==========================================
-// 核心設定：Cloudflare Worker 網址
-// ==========================================
 const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`; 
+let allParkingSpots = []; 
 
-let allParkingSpots = []; // 儲存所有車位資料
-
-// 🛡️ 在地備用資料庫（當雲端連線超時，會自動秒速啟用，保證網頁不卡死！）
+// 🛡️ 在地安全備用資料庫（當雲端超時，5秒內自動啟用，絕對不卡死！）
 const backupSpots = [
     { POSITION: "台中車站地下停車場", ADDRESS: "台中市東區臺灣大道一段1號", TOTAL: 300, AVAILABLE: 125, IS_PREDICTED: true, FARE_DESC: "每小時 30 元", LATITUDE: 24.1372, LONGITUDE: 120.6856 },
-    { POSITION: "中友百貨大誠停車場", ADDRESS: "台中市北區三民路三段161號", TOTAL: 250, AVAILABLE: 45, IS_PREDICTED: true, FARE_DESC: "每小時 50 元", LATITUDE: 24.1528, LONGITUDE: 120.6844 },
-    { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "台中市西屯區朝富路30號", TOTAL: 180, AVAILABLE: 88, IS_PREDICTED: true, FARE_DESC: "每小時 20 元", LATITUDE: 24.1674, LONGITUDE: 120.6394 },
-    { POSITION: "逢甲文華停車場", ADDRESS: "台中市西屯區文華路100號", TOTAL: 120, AVAILABLE: 12, IS_PREDICTED: true, FARE_DESC: "每小時 40 元", LATITUDE: 24.1788, LONGITUDE: 120.6466 },
-    { POSITION: "草悟道廣場地下停車場", ADDRESS: "台中市西區英才路534號", TOTAL: 220, AVAILABLE: 0, IS_PREDICTED: true, FARE_DESC: "每小時 30 元", LATITUDE: 24.1502, LONGITUDE: 120.6634 }
+    { POSITION: "中友百貨大誠停車場", ADDRESS: "台中市北區分區三民路三段161號", TOTAL: 250, AVAILABLE: 45, IS_PREDICTED: true, FARE_DESC: "每小時 50 元", LATITUDE: 24.1528, LONGITUDE: 120.6844 },
+    { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "台中市西屯區朝富路30號", TOTAL: 180, AVAILABLE: 88, IS_PREDICTED: true, FARE_DESC: "每小時 20 元", LATITUDE: 24.1674, LONGITUDE: 120.6394 }
 ];
 
-console.log("🚀 [內嵌腳本] 載入成功，已徹底跳過外部檔案載入關卡！");
-
-// 網頁初始化載入
 document.addEventListener("DOMContentLoaded", () => {
+    console.log("🚀 [內嵌腳本] 成功啟動！");
     fetchTDXParkingData();
 });
 
-// 觸發 HTML onclick="handleTextSearch()" 的核心相容橋梁
-function handleTextSearch() {
-    console.log("🖱️ 使用者點擊了搜尋按鈕");
-    doAdvancedSearch();
-}
+function handleTextSearch() { doAdvancedSearch(); }
 
-// 觸發 HTML onclick="toggleVoiceSearch()" 的核心相容橋梁
 function toggleVoiceSearch() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("您的瀏覽器不支援語音辨識 😢");
-        return;
-    }
+    if (!SpeechRecognition) { alert("您的瀏覽器不支援語音辨識 😢"); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = 'zh-TW';
-    
     const statusEl = document.getElementById('status-text');
-    if (statusEl) statusEl.innerText = "🎙️ 正在聆聽中，請說出想搜尋的地點...";
-
+    if (statusEl) statusEl.innerText = "🎙️ 正在聆聽中，請說出地點...";
     recognition.onresult = (event) => {
         const text = event.results[0][0].transcript;
         const searchInput = document.getElementById('search-input');
-        if (searchInput) {
-            searchInput.value = text;
-            doAdvancedSearch();
-        }
+        if (searchInput) { searchInput.value = text; doAdvancedSearch(); }
     };
     recognition.start();
 }
 
-// 向 Cloudflare Worker 獲取即時資料
 async function fetchTDXParkingData() {
     const statusEl = document.getElementById('status-text');
     try {
-        // 加入 5 秒強制超時機制，5 秒內沒回應就秒轉在地備用資料
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超時防護
 
         const dataResponse = await fetch(MY_WORKER_URL, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (!dataResponse.ok) throw new Error(`HTTP 異常: ${dataResponse.status}`);
-        
         const tdxRealData = await dataResponse.json();
         let availList = tdxRealData.ParkingAvailabilities || tdxRealData;
 
         if (availList && Array.isArray(availList) && availList.length > 0) {
             allParkingSpots = availList.map(item => ({
                 POSITION: item.POSITION || (item.CarParkName && item.CarParkName.Zh_tw) || "公有停車場",
-                ADDRESS: item.ADDRESS || item.CarParkAddress || "台中市區域",
+                ADDRESS: item.ADDRESS || item.CarParkAddress || "台中市",
                 TOTAL: parseInt(item.TOTAL || item.TotalSpaces) || 100,
                 AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : 0,
                 IS_PREDICTED: item.IS_PREDICTED === true, 
@@ -142,44 +117,33 @@ async function fetchTDXParkingData() {
                 LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
                 LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
             }));
-
             allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
             if (statusEl) statusEl.innerText = `🟢 同步成功！已載入 ${allParkingSpots.length} 個即時車位。`;
             renderParkingList(allParkingSpots.slice(0, 15));
         } else {
-            throw new Error('回傳資料內無有效的車位陣列');
+            throw new Error('無有效車位陣列');
         }
     } catch (e) {
-        console.warn("⚠️ 自動分流：已切換至備用核心資料。原因:", e.message);
+        console.warn("🛡️ 啟動備用防護:", e.message);
         allParkingSpots = [...backupSpots];
         if (statusEl) statusEl.innerText = `🟡 目前運行於備用安全模式（已自動啟用在地資料庫）`;
         renderParkingList(allParkingSpots);
     }
 }
 
-// Haversine 距離公式
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3; 
-    const phi1 = lat1 * Math.PI / 180;
-    const phi2 = lat2 * Math.PI / 180;
-    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
-    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-              Math.cos(phi1) * Math.cos(phi2) *
-              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const phi1 = lat1 * Math.PI / 180, phi2 = lat2 * Math.PI / 180;
+    const dPhi = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 智慧搜尋核心
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
-    
     const keyword = searchInput.value.trim();
-    if (!keyword) {
-        renderParkingList(allParkingSpots.slice(0, 15));
-        return;
-    }
+    if (!keyword) { renderParkingList(allParkingSpots.slice(0, 15)); return; }
 
     const statusEl = document.getElementById('status-text');
     if (statusEl) statusEl.innerText = `🔍 正在計算 「${keyword}」 的周邊車位與距離...`;
@@ -210,17 +174,14 @@ async function doAdvancedSearch() {
     if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
 }
 
-// 介面渲染
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     if (!listContainer) return;
     listContainer.innerHTML = ""; 
-
     if (!spots || spots.length === 0) {
         listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場 😢</div>`;
         return;
     }
-
     spots.forEach(spot => {
         let countColor = spot.AVAILABLE <= 0 ? "text-red-500 font-black" : (spot.AVAILABLE < 10 ? "text-yellow-600 font-black" : "text-green-600 font-black");
         const cardHtml = `
@@ -231,14 +192,13 @@ function renderParkingList(spots) {
                     <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費：${spot.FARE_DESC}</p>
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-                        ${spot.IS_PREDICTED ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>` : ''}
                         ${spot.DISTANCE ? `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200">距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>` : ''} 
                     </div>
                 </div>
                 <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
                     <div class="text-2xl ${countColor}">${spot.AVAILABLE}</div>
-                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs shadow-sm">導航</button>
+                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs">導航</button>
                 </div>
             </div>
         `;
@@ -246,21 +206,14 @@ function renderParkingList(spots) {
     });
 }
 
-// 導航函數（100% 語法正確、不卡死完全體）
 function navigate(lat, lon) {
-    console.log("🗺️ [導航系統] 觸發導航，座標為:", lat, lon);
-    
     if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
-        // 蘋果裝置：跳轉 Apple Maps
         window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`, '_blank');
     } else {
-        // 安卓與電腦裝置：標準 Google 地圖導航網址（完全修正變數與錯字）
         window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`, '_blank');
     }
 }
 </script>
 
-        
-    <script> 
 </body>
 </html>
