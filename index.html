@@ -103,12 +103,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
         console.error("❌ [偵錯系統] 錯誤：網頁中找不到 id='search-btn' 的搜尋按鈕！");
     }
-
-    // 4. 語音按鈕的相容性防摔檢查（讓你的語音按鈕功能完美續接）
-    const voiceBtn = document.getElementById('voice-btn') || document.querySelector('.voice-btn');
-    if (voiceBtn) {
-        console.log("🎙️ [偵錯系統] 偵測到網頁中存在語音功能元件");
-    }
 });
 
 // 向 Cloudflare Worker 獲取即時資料
@@ -119,7 +113,7 @@ async function fetchTDXParkingData() {
         if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (狀態碼:${dataResponse.status})`);
         
         const tdxRealData = await dataResponse.json();
-        console.log("📦 [偵錯系統] 成功收到雲端原始 JSON 資料，長度：", JSON.stringify(tdxRealData).length);
+        console.log("📦 [偵錯系統] 成功收到雲端原始 JSON 資料！");
 
         let availList = [];
         if (tdxRealData && tdxRealData.ParkingAvailabilities) {
@@ -179,10 +173,10 @@ async function doAdvancedSearch() {
     if (!searchInput) return;
     
     const keyword = searchInput.value.trim();
-    console.log(`🔍 [偵錯系統] 智慧搜尋程序啟動！使用者輸入的關鍵字為: [${keyword}]`);
+    console.log(`🔍 [偵錯系統] 智慧搜尋程序啟動！關鍵字: [${keyword}]`);
     
     if (!keyword) {
-        console.log("ℹ️ [偵錯系統] 輸入框為空值，還原顯示前 15 筆熱門車位");
+        console.log("ℹ️ [偵錯系統] 輸入框為空，還原顯示前 15 筆車位");
         renderParkingList(allParkingSpots.slice(0, 15));
         return;
     }
@@ -195,32 +189,30 @@ async function doAdvancedSearch() {
     try {
         const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
         const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
-        console.log(`🌐 [偵錯系統] 正在向 OpenStreetMap 地理編碼發出座標轉換請求: ${geoUrl}`);
+        console.log(`🌐 [偵錯系統] 正在向 OpenStreetMap 地理編碼發出座標轉換請求...`);
         
         const geoResponse = await fetch(geoUrl, { 
             headers: { 
                 'Accept-Language': 'zh-TW',
-                'User-Agent': 'TaichungParkingApp/4.0' 
+                'User-Agent': 'TaichungParkingApp/5.0' 
             } 
         });
         
         if (geoResponse.ok) {
-            const geoData = await geoResponse.ok ? await geoResponse.json() : [];
+            const geoData = await geoResponse.json();
             if (geoData && geoData.length > 0) {
                 targetLat = parseFloat(geoData[0].lat);
                 targetLon = parseFloat(geoData[0].lon);
-                console.log(`🎯 [偵錯系統] 地名解析成功！[${keyword}] 的中心點座標為: (Lat: ${targetLat}, Lon: ${targetLon})`);
+                console.log(`🎯 [偵錯系統] 地名解析成功！中心座標: (Lat: ${targetLat}, Lon: ${targetLon})`);
             } else {
-                console.log(`⚠️ [偵錯系統] OpenStreetMap 找不到該地名的經緯度，將完全依賴純文字對齊。`);
+                console.log(`⚠️ [偵錯系統] 找不到該地名的經緯度，將依賴純文字對齊。`);
             }
-        } else {
-            console.log(`⚠️ [偵錯系統] 地理編碼伺服器回應異常 (狀態碼:${geoResponse.status})，降級為文字搜尋。`);
         }
     } catch (geoError) {
-        console.log("⚠️ [偵錯系統] 地名解析網路異常，自動啟動純文字備援計算:", geoError.message);
+        console.log("⚠️ [偵錯系統] 地名解析網路異常，啟動純文字模糊計算:", geoError.message);
     }
 
-    console.log("⚙️ [偵錯系統] 開始進行全台中車位「文字模糊咬合」與「半徑範圍距離」雙軌計算...");
+    console.log("⚙️ [偵錯系統] 開始進行全台中車位雙軌計算...");
     let searchResults = allParkingSpots.map(spot => {
         let distance = null;
         let matchText = 0;
@@ -237,13 +229,11 @@ async function doAdvancedSearch() {
         return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
     });
 
-    // 篩選：名字符合關鍵字，或者在目標座標 3.5 公里以內
     let filteredSpots = searchResults.filter(spot => {
         return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
     });
     console.log(`📊 [偵錯系統] 雙軌篩選完成，符合條件的停車場共有 ${filteredSpots.length} 個`);
 
-    // 排序：距離近的優先排在最前面
     filteredSpots.sort((a, b) => {
         if (a.DISTANCE !== null && b.DISTANCE !== null) {
             return a.DISTANCE - b.DISTANCE; 
@@ -257,7 +247,7 @@ async function doAdvancedSearch() {
 
 // 將資料渲染至網頁卡片面版
 function renderParkingList(spots) {
-    console.log(`🎨 [偵錯系統] 開始渲染卡片介面，本次要畫出的卡片數量: ${spots.length}`);
+    console.log(`🎨 [偵錯系統] 開始渲染卡片介面，卡片數量: ${spots.length}`);
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
 
@@ -323,12 +313,9 @@ function renderParkingList(spots) {
 
 // 導航函數（🔥 100% 徹底拔除 0{lat} 語法錯誤的無毒安全版）
 function navigate(lat, lon) {
-    console.log(`🗺️ [偵錯系統] 觸發導航事件，目標座標: (Lat: ${lat}, Lon: ${lon})`);
-    if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
-        window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`);
-    } else {
-        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`);
-    }
+    console.log(`🗺️ [偵錯系統] 觸發導航，目標座標: (Lat: ${lat}, Lon: ${lon})`);
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+    window.open(url, '_blank');
 }
     <script> 
 </body>
