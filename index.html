@@ -165,6 +165,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
+    
+    // 確保每次抓取的 keyword 都是當下輸入框最新、乾淨的字串
     const keyword = searchInput.value.trim();
     if (!keyword) { renderParkingList(allParkingSpots.slice(0, 15)); return; }
 
@@ -173,8 +175,9 @@ async function doAdvancedSearch() {
 
     let targetLat = null, targetLon = null;
     let exactKeywords = [];
-    let prioritySpots = []; // 🌟 在地人優先推薦的硬核保送名單
+    let prioritySpots = []; 
 
+    // 重新強制轉小寫，確保比對字串新鮮度
     const lowerKey = keyword.toLowerCase();
 
     // 🎯 景點特例攔截 ＋ 在地人優先停車場矩陣
