@@ -69,11 +69,11 @@ const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`
 let allParkingSpots = []; // 儲存所有車位資料
 let backupSpots = [];     // 備用核心資料庫
 
-console.log("🚀 [偵錯系統] 停車場應用腳本已成功載入！");
+console.log("🚀 [偵錯系統] 腳本載入成功，開始準備執行！");
 
 // 網頁初始化載入
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("📅 [偵錯系統] DOM 載入完成，開始初始化事件與資料...");
+    console.log("📅 [偵錯系統] 網頁畫面載入完成，開始綁定按鈕與建立連線...");
     
     // 1. 自動向 Worker 獲取最新即時資料
     fetchTDXParkingData();
@@ -81,40 +81,35 @@ document.addEventListener("DOMContentLoaded", () => {
     // 2. 綁定輸入框：支援按下 Enter 鍵觸發智慧搜尋
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
-        console.log("🎯 [偵錯系統] 成功鎖定輸入框 [search-input]，Enter 監聽已就緒");
+        console.log("🎯 [偵錯系統] 成功鎖定搜尋輸入框");
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                console.log("⌨️ [偵錯系統] 偵測到使用者按下 Enter 鍵");
                 doAdvancedSearch();
             }
         });
-    } else {
-        console.error("❌ [偵錯系統] 錯誤：網頁中找不到 id='search-input' 的輸入框！");
     }
     
     // 3. 綁定搜尋按鈕：點擊時觸發智慧搜尋
     const searchBtn = document.getElementById('search-btn');
     if (searchBtn) {
-        console.log("🎯 [偵錯系統] 成功鎖定搜尋按鈕 [search-btn]，點擊監聽已就緒");
+        console.log("🎯 [偵錯系統] 成功鎖定搜尋按鈕");
         searchBtn.removeAttribute('onclick'); // 移除舊的 onclick 避免衝突
         searchBtn.addEventListener('click', () => {
-            console.log("🖱️ [偵錯系統] 偵測到使用者點擊了搜尋按鈕");
+            console.log("🖱️ [偵錯系統] 使用者點擊了搜尋按鈕");
             doAdvancedSearch();
         });
-    } else {
-        console.error("❌ [偵錯系統] 錯誤：網頁中找不到 id='search-btn' 的搜尋按鈕！");
     }
 });
 
 // 向 Cloudflare Worker 獲取即時資料
 async function fetchTDXParkingData() {
-    console.log(`🌐 [偵錯系統] 開始連線至雲端 Worker，網址: ${MY_WORKER_URL}`);
+    console.log(`🌐 [偵錯系統] 正在呼叫 API 獲取資料: ${MY_WORKER_URL}`);
     try {
         const dataResponse = await fetch(MY_WORKER_URL);
         if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (狀態碼:${dataResponse.status})`);
         
         const tdxRealData = await dataResponse.json();
-        console.log("📦 [偵錯系統] 成功收到雲端原始 JSON 資料！");
+        console.log("📦 [偵錯系統] 資料下載完成！");
 
         let availList = [];
         if (tdxRealData && tdxRealData.ParkingAvailabilities) {
@@ -138,7 +133,7 @@ async function fetchTDXParkingData() {
                 };
             });
 
-            console.log(`✅ [偵錯系統] 資料解析成功！共轉換出 ${allParkingSpots.length} 筆完整車位欄位資料`);
+            console.log(`✅ [偵錯系統] 資料解析成功，共 ${allParkingSpots.length} 筆`);
             allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
             document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端通道載入 ${allParkingSpots.length} 個即時車位。`;
             renderParkingList(allParkingSpots.slice(0, 15));
@@ -146,7 +141,7 @@ async function fetchTDXParkingData() {
             throw new Error('雲端回傳格式不符，未偵測到車位陣列');
         }
     } catch (e) {
-        console.error("❌ [偵錯系統] 獲取即時資料失敗，進入降級備用模式。錯誤原因:", e.message);
+        console.error("❌ [偵錯系統] 連線失敗:", e.message);
         allParkingSpots = [...backupSpots];
         document.getElementById('status-text').innerText = `🟡 目前運行於核心備用模式 (原因:${e.message})`;
         renderParkingList(allParkingSpots);
@@ -174,10 +169,9 @@ async function doAdvancedSearch() {
     if (!searchInput) return;
     
     const keyword = searchInput.value.trim();
-    console.log(`🔍 [偵錯系統] 智慧搜尋程序啟動！關鍵字: [${keyword}]`);
+    console.log(`🔍 [偵錯系統] 開始搜尋關鍵字: [${keyword}]`);
     
     if (!keyword) {
-        console.log("ℹ️ [偵錯系統] 輸入框為空，還原顯示前 15 筆車位");
         renderParkingList(allParkingSpots.slice(0, 15));
         return;
     }
@@ -190,12 +184,11 @@ async function doAdvancedSearch() {
     try {
         const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
         const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
-        console.log(`🌐 [偵錯系統] 正在向 OpenStreetMap 地理編碼發出座標轉換請求...`);
         
         const geoResponse = await fetch(geoUrl, { 
             headers: { 
                 'Accept-Language': 'zh-TW',
-                'User-Agent': 'TaichungParkingApp/5.0' 
+                'User-Agent': 'TaichungParkingApp/6.0' 
             } 
         });
         
@@ -204,16 +197,13 @@ async function doAdvancedSearch() {
             if (geoData && geoData.length > 0) {
                 targetLat = parseFloat(geoData[0].lat);
                 targetLon = parseFloat(geoData[0].lon);
-                console.log(`🎯 [偵錯系統] 地名解析成功！中心座標: (Lat: ${targetLat}, Lon: ${targetLon})`);
-            } else {
-                console.log(`⚠️ [偵錯系統] 找不到該地名的經緯度，將依賴純文字對齊。`);
+                console.log(`🎯 [偵錯系統] 經緯度解析成功: (${targetLat}, ${targetLon})`);
             }
         }
     } catch (geoError) {
-        console.log("⚠️ [偵錯系統] 地名解析網路異常，啟動純文字模糊計算:", geoError.message);
+        console.log("⚠️ [偵錯系統] 地理編碼異常，使用純文字搜尋");
     }
 
-    console.log("⚙️ [偵錯系統] 開始進行全台中車位雙軌計算...");
     let searchResults = allParkingSpots.map(spot => {
         let distance = null;
         let matchText = 0;
@@ -233,7 +223,6 @@ async function doAdvancedSearch() {
     let filteredSpots = searchResults.filter(spot => {
         return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
     });
-    console.log(`📊 [偵錯系統] 雙軌篩選完成，符合條件的停車場共有 ${filteredSpots.length} 個`);
 
     filteredSpots.sort((a, b) => {
         if (a.DISTANCE !== null && b.DISTANCE !== null) {
@@ -248,12 +237,11 @@ async function doAdvancedSearch() {
 
 // 將資料渲染至網頁卡片面版
 function renderParkingList(spots) {
-    console.log(`🎨 [偵錯系統] 開始渲染卡片介面，卡片數量: ${spots.length}`);
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
 
     if (!spots || spots.length === 0) {
-        listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場，換個名稱試試吧 😢</div>`;
+        listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場 😢</div>`;
         return;
     }
 
@@ -279,21 +267,17 @@ function renderParkingList(spots) {
                 <div class="flex-1 pr-2">
                     <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
                     <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${spot.ADDRESS}</p>
-                    
                     <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-100">
                         <i class="fa-solid fa-circle-info text-blue-400"></i> 收費：${spot.FARE_DESC}
                     </p>
-
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-                        
                         ${spot.IS_PREDICTED === true
                             ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
                             : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`
                         }
-
                         ${(spot.DISTANCE !== null && spot.DISTANCE !== undefined) 
-                            ? `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200"><i class="fa-solid fa-route"></i> 距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>` 
+                            ? `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200">距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>` 
                             : ''
                         } 
                     </div>
@@ -302,26 +286,25 @@ function renderParkingList(spots) {
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
                     <div class="text-2xl ${countColor} ${fontStyle}">${spot.AVAILABLE}</div>
                     <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
-                        <i class="fa-solid fa-location-arrow"></i> 導航
+                        導航
                     </button>
                 </div>
             </div>
         `;
         listContainer.innerHTML += cardHtml;
     });
-    console.log("✨ [偵錯系統] 面版渲染繪製完畢！");
 }
 
-// 導航函數（✨ 100% 徹底拔除 0{lat} 錯字，萬用安全版）
+// 導航函數（✨ 這次真的徹底拔除 0{lat}，改用絕對安全的傳統字串加號拼接）
 function navigate(lat, lon) {
-    console.log(`🗺️ [偵錯系統] 觸發導航，目標座標: (Lat: ${lat}, Lon: ${lon})`);
+    console.log("🗺️ [偵錯系統] 準備導航，座標是:", lat, lon);
     
     if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
-        // 蘋果地圖通用格式
-        window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`, '_blank');
+        var appleUrl = 'maps://maps.apple.com/?daddr=' + lat + ',' + lon + '&dirflg=d';
+        window.open(appleUrl, '_blank');
     } else {
-        // 安卓與桌機 Google 地圖標準格式
-        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`, '_blank');
+        var googleUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon;
+        window.open(googleUrl, '_blank');
     }
 }
         
