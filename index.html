@@ -61,7 +61,7 @@
 
     <script>
 
-    // ==========================================
+// ==========================================
 // 核心設定：Cloudflare Worker 網址（已整合自動破快取）
 // ==========================================
 const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`; 
@@ -247,7 +247,6 @@ async function doAdvancedSearch() {
 }
 
 // 將資料渲染至網頁卡片面版
-function removeAllTraces() {} // 預留相容函數
 function renderParkingList(spots) {
     console.log(`🎨 [偵錯系統] 開始渲染卡片介面，卡片數量: ${spots.length}`);
     const listContainer = document.getElementById('parking-list');
@@ -313,12 +312,19 @@ function renderParkingList(spots) {
     console.log("✨ [偵錯系統] 面版渲染繪製完畢！");
 }
 
-// 導航函數（🔥 100% 徹底拔除 0{lat} 語法錯誤的無毒安全版）
+// 導航函數（✨ 100% 徹底拔除 0{lat} 錯字，萬用安全版）
 function navigate(lat, lon) {
     console.log(`🗺️ [偵錯系統] 觸發導航，目標座標: (Lat: ${lat}, Lon: ${lon})`);
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-    window.open(url, '_blank');
-}    
+    
+    if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
+        // 蘋果地圖通用格式
+        window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`, '_blank');
+    } else {
+        // 安卓與桌機 Google 地圖標準格式
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`, '_blank');
+    }
+}
+        
     <script> 
 </body>
 </html>
