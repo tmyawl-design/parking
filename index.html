@@ -208,67 +208,17 @@ function renderParkingList(spots) {
     });
 }
 
-// 全新智慧搜尋：文字比對與座標距離雙軌制
-async function doAdvancedSearch() {
-    const keyword = document.getElementById('search-input').value.trim(); // 取得搜尋框文字
-    const listContainer = document.getElementById('parking-list');
-    
-    if (!keyword) {
-        // 如果沒輸入，就預設顯示前15筆
-        renderParkingList(allParkingSpots.slice(0, 15));
-        return;
-    }
-
-    document.getElementById('status-text').innerText = `🔍 正在搜尋 「${keyword}」 的周邊停車場...`;
-
-    try {
-        // 🌟 核心突破：利用 OpenStreetMap 免費解析地名成經緯度
-        const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}&limit=1`;
-        const geoResponse = await fetch(geoUrl, { headers: { 'Accept-Language': 'zh-TW' } });
-        const geoData = await geoResponse.json();
-
-        let targetLat = null;
-        let targetLon = null;
-
-        if (geoData && geoData.length > 0) {
-            targetLat = parseFloat(geoData[0].lat);
-            targetLon = parseFloat(geoData[0].lon);
-            console.log(`成功將地名 [${keyword}] 轉為座標:`, targetLat, targetLon);
+       // 搜尋比對
+        function searchParkingSpots(keyword) {
+            if (!allParkingSpots || allParkingSpots.length === 0) return;
+            const cleanKey = keyword.trim();
+            const filtered = allParkingSpots.filter(spot => {
+                const pName = spot.POSITION || "";
+                const pAddr = spot.ADDRESS || "";
+                return pName.includes(cleanKey) || pAddr.includes(cleanKey);
+            });
+            renderParkingList(filtered);
         }
-
-        // 開始對所有停車場進行篩選與距離計算
-        let searchResults = allParkingSpots.map(spot => {
-            let distance = null;
-            let matchScore = 0;
-
-            // 邏輯 A：如果有成功轉出座標，計算該停車場與目標地名的距離
-            if (targetLat !== null && targetLon !== null) {
-                distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
-            }
-
-            // 邏輯 B：傳統文字模糊比對
-            if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
-                spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
-                matchScore = 1; // 代表名字有中
-            }
-
-            return { ...spot, DISTANCE: distance, MATCH_TEXT: matchScore };
-        });
-
-        // 篩選條件：要麼名字裡有關鍵字，要麼距離目標地名 2.5 公里之內
-        let filteredSpots = searchResults.filter(spot => {
-            const isTextMatch = spot.MATCH_TEXT === 1;
-            const isNearMatch = spot.DISTANCE !== null && spot.DISTANCE <= 2500; // 2.5公里內
-            return isTextMatch || isNearMatch;
-        });
-
-        // 排序權重：如果有點位距離，由近到遠排序；其餘按剩餘車位排序
-        filteredSpots.sort((a, b) => {
-            if (a.DISTANCE !== null && b.DISTANCE !== null) {
-                return a.DISTANCE - b.DISTANCE; // 近的排前面
-            }
-            return b.AVAILABLE - a.AVAILABLE;
-        });
 
         // 渲染結果
         renderParkingList(filteredSpots);
