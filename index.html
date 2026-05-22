@@ -59,6 +59,15 @@
         </button>
     </div>
 
+<footer class="mt-8 mb-6 px-4 text-center text-gray-400 text-[11px] leading-relaxed max-w-md mx-auto border-t border-gray-100 pt-4">
+    <p class="font-semibold mb-1">Copyright © 2026 tmyawl. All Rights Reserved.</p>
+    <p class="mb-2">本專案為個人學術研究與前端開發作品集，嚴禁任何未經授權之商業轉售與營利行為。</p>
+    <p class="text-gray-400/80">
+        💡 <span class="font-medium">免責聲明：</span>本網頁僅供個人技術練習使用，不作任何商業盈利用途。
+        資料來源為台中市即時交通網之公開傳輸內容，即時車位資訊及費率請以現場實際公告為準。
+    </p>
+</footer>
+    
 <script>
 // 預設中心點座標（台中市政府）
 const TAICHUNG_CENTER_LAT = 24.1618;
@@ -262,7 +271,7 @@ function renderParkingList(spots) {
                     
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-                        <span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 交通局特權連線 (含民營)</span>
+                        <span class="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-blue-200">ℹ️ 資料來源：台中市即時交通網</span>
                         ${distanceStr} 
                     </div>
                 </div>
