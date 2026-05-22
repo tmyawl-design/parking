@@ -64,30 +64,39 @@
         let recognition = null;
         let allParkingSpots = []; 
 
-        // ⚠️ 【重要設定】請把下方引號內換成您在 Cloudflare 複製的那串專屬 Worker 網址
-        // 確保一定是 https 開頭，且結尾「不要」帶有斜線 / 喔！
-// 🟢 請精準修改為這一行
-// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！
-const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`;
+// ==========================================
+// 核心設定：請確認您的 Cloudflare Worker 網址
+// ==========================================
+// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！        
+const MY_WORKER_URL = "https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}"; 
 
-        // 內建的核心備用資料（萬一雲端斷線時保底用，確保網頁絕對不卡死）
-        const backupSpots = [
-            { POSITION: "馬卡龍公園立體停車場", ADDRESS: "太平區環中東路四段 (馬卡龍公園旁)", TOTAL: 150, AVAILABLE: 68, LATITUDE: 24.1365, LONGITUDE: 120.7145 },
-            { POSITION: "馬卡龍公園迪卡儂側平面停車場", ADDRESS: "太平區環中東路四段與振興路口", TOTAL: 80, AVAILABLE: 24, LATITUDE: 24.1352, LONGITUDE: 120.7152 },
-            { POSITION: "台中火車站地下停車場", ADDRESS: "中區台灣大道一段1號", TOTAL: 350, AVAILABLE: 142, LATITUDE: 24.1372, LONGITUDE: 120.6856 },
-            { POSITION: "府後街地下停車場", ADDRESS: "西區府後街1-1號", TOTAL: 120, AVAILABLE: 35, LATITUDE: 24.1432, LONGITUDE: 120.6819 },
-            { POSITION: "台中大創綠園道停車場", ADDRESS: "西區公益路68號", TOTAL: 200, AVAILABLE: 88, LATITUDE: 24.1512, LONGITUDE: 120.6638 },
-            { POSITION: "一中街新友停車場", ADDRESS: "北區一中街", TOTAL: 80, AVAILABLE: 15, LATITUDE: 24.1495, LONGITUDE: 120.6852 },
-            { POSITION: "逢甲黎客商旅旁停車場", ADDRESS: "西屯區逢甲路", TOTAL: 80, AVAILABLE: 18, LATITUDE: 24.1782, LONGITUDE: 120.6455 },
-            { POSITION: "秋紅谷景觀生態公園停車場", ADDRESS: "西屯區朝馬路30號", TOTAL: 150, AVAILABLE: 64, LATITUDE: 24.1675, LONGITUDE: 120.6398 }
-        ];
+let allParkingSpots = []; // 儲存後端抓回來的所有車位資料
+let backupSpots = [];     // 備用核心資料庫
 
-        // 網頁開啟時自動運作
-        window.addEventListener('DOMContentLoaded', () => {
-            fetchTDXParkingData();
+// 網頁初始化載入
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. 自動向 Worker 獲取最新即時資料
+    fetchTDXParkingData();
+
+    // 2. 自動強力綁定：讓輸入框支援按下 Enter 鍵也能觸發智慧搜尋
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                doAdvancedSearch();
+            }
         });
+    }
+    
+    // 3. 自動強力綁定：點擊搜尋按鈕時觸發智慧搜尋
+    const searchBtn = document.getElementById('search-btn');
+    if (searchBtn) {
+        searchBtn.removeAttribute('onclick'); // 移除舊的 onclick 避免衝突
+        searchBtn.addEventListener('click', doAdvancedSearch);
+    }
+});
 
-
+// 向您的 Cloudflare Worker 獲取最新即時資料（含預測資料與收費資訊）
 async function fetchTDXParkingData() {
     try {
         if (MY_WORKER_URL.includes("您的帳號")) {
@@ -119,7 +128,7 @@ async function fetchTDXParkingData() {
                     TOTAL: parseInt(item.TOTAL || item.TotalSpaces) || 100,
                     AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : (item.AvailableSpaces !== undefined ? item.AvailableSpaces : 0),
                     IS_PREDICTED: item.IS_PREDICTED === true, 
-                    FARE_DESC: item.FARE_DESC || "依現場公告費率為準", // 🌟 接收收費敘述
+                    FARE_DESC: item.FARE_DESC || "依現場公告費率為準", 
                     LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
                     LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
                 };
@@ -139,8 +148,92 @@ async function fetchTDXParkingData() {
     }
 }
 
+// 計算經緯度公里距離公式 (Haversine 公式)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; 
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; 
+}
+
+// 智慧核心：地名轉座標 ＋ 半徑範圍雙軌搜尋
+async function doAdvancedSearch() {
+    const searchInput = document.getElementById('search-input');
+    if (!searchInput) return;
+    
+    const keyword = searchInput.value.trim();
+    
+    if (!keyword) {
+        renderParkingList(allParkingSpots.slice(0, 15));
+        return;
+    }
+
+    document.getElementById('status-text').innerText = `🔍 正在計算 「${keyword}」 的周邊車位與距離...`;
+
+    let targetLat = null;
+    let targetLon = null;
+
+    try {
+        const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
+        const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
         
-// 將資料渲染至網頁卡片面版（修正變數未定義錯誤之終極防護版）
+        const geoResponse = await fetch(geoUrl, { 
+            headers: { 
+                'Accept-Language': 'zh-TW',
+                'User-Agent': 'TaichungParkingApp/3.0' 
+            } 
+        });
+        
+        if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            if (geoData && geoData.length > 0) {
+                targetLat = parseFloat(geoData[0].lat);
+                targetLon = parseFloat(geoData[0].lon);
+            }
+        }
+    } catch (geoError) {
+        console.log("地名解析暫時中斷，啟動純文字備援計算");
+    }
+
+    let searchResults = allParkingSpots.map(spot => {
+        let distance = null;
+        let matchText = 0;
+
+        if (targetLat !== null && targetLon !== null) {
+            distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
+        }
+
+        if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
+            spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
+            matchText = 1; 
+        }
+
+        return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
+    });
+
+    let filteredSpots = searchResults.filter(spot => {
+        return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
+    });
+
+    filteredSpots.sort((a, b) => {
+        if (a.DISTANCE !== null && b.DISTANCE !== null) {
+            return a.DISTANCE - b.DISTANCE; 
+        }
+        return b.AVAILABLE - a.AVAILABLE;
+    });
+
+    renderParkingList(filteredSpots);
+    document.getElementById('status-text').innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
+}
+
+// 將資料渲染至網頁卡片面版
 function renderParkingList(spots) {
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
@@ -167,7 +260,6 @@ function renderParkingList(spots) {
             }
         }
 
-        // 🌟 終極防護：直接在 cardHtml 組合時動態計算，徹底根除 "is not defined" 靈異現象
         const cardHtml = `
             <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
@@ -205,100 +297,13 @@ function renderParkingList(spots) {
     });
 }
 
-       // 搜尋比對
-        function searchParkingSpots(keyword) {
-            if (!allParkingSpots || allParkingSpots.length === 0) return;
-            const cleanKey = keyword.trim();
-            const filtered = allParkingSpots.filter(spot => {
-                const pName = spot.POSITION || "";
-                const pAddr = spot.ADDRESS || "";
-                return pName.includes(cleanKey) || pAddr.includes(cleanKey);
-            });
-            renderParkingList(filtered);
-        }
-
-        // 渲染結果
-        renderParkingList(filteredSpots);
-        document.getElementById('status-text').innerText = `🟢 搜尋完成！找到 ${filteredSpots.length} 個相關停車場。`;
-
-    } catch (error) {
-        console.error("地理編碼失敗，降級為純文字搜尋", error);
-        // 萬一 OSM API 斷線，降級回原本的純文字搜尋
-        const fallback = allParkingSpots.filter(spot => 
-            spot.POSITION.includes(keyword) || spot.ADDRESS.includes(keyword)
-        );
-        renderParkingList(fallback);
+// 導航函數 (🌟 完美修正版)
+function navigate(lat, lon) {
+    if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
+        window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`);
+    } else {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`);
     }
 }
-
-        // 語音辨識
-        function initSpeechRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("目前瀏覽器不支援語音辨識，請使用 Android Chrome 開啟！");
-                return null;
-            }
-            const rec = new SpeechRecognition();
-            rec.lang = 'zh-TW';
-            rec.continuous = false;
-            rec.interimResults = true;
-
-            rec.onresult = (event) => {
-                const resultText = document.getElementById('result-text');
-                let transcript = "";
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    transcript += event.results[i][0].transcript;
-                }
-                resultText.classList.remove('hidden');
-                resultText.innerText = `「 ${transcript} 」`;
-            };
-
-            rec.onend = () => {
-                const resultText = document.getElementById('result-text').innerText;
-                const queryLocation = resultText.replace(/[「」\s]/g, '');
-                if (queryLocation && queryLocation !== "請說出目的地..." && queryLocation !== "正在辨識中...") {
-                    document.getElementById('status-text').innerText = `已幫您語音搜尋「${queryLocation}」附近的停車場：`;
-                    searchParkingSpots(queryLocation); 
-                }
-                stopMicUI();
-            };
-            rec.onerror = () => { stopMicUI(); };
-            return rec;
-        }
-
-        function toggleVoiceSearch() {
-            if (!recognition) recognition = initSpeechRecognition();
-            if (!recognition) return;
-            if (!isRecording) { try { recognition.start(); startMicUI(); } catch (e) {} } 
-            else { recognition.stop(); stopMicUI(); }
-        }
-
-        function startMicUI() {
-            isRecording = true;
-            document.getElementById('mic-btn').classList.replace('bg-blue-600', 'bg-red-500');
-            document.getElementById('mic-btn').classList.add('recording-active');
-            document.getElementById('mic-icon').classList.replace('fa-microphone', 'fa-stop');
-            document.getElementById('mic-tip').innerText = "說完請再按一次";
-            document.getElementById('status-text').innerText = "正在聆聽中...";
-        }
-
-        function stopMicUI() {
-            isRecording = false;
-            document.getElementById('mic-btn').classList.replace('bg-red-500', 'bg-blue-600');
-            document.getElementById('mic-btn').classList.remove('recording-active');
-            document.getElementById('mic-icon').classList.replace('fa-stop', 'fa-microphone');
-            document.getElementById('mic-tip').innerText = "按我開始語音搜尋";
-        }
-
-        // Google Maps 導航
-        function navigate(lat, lng) {
-            if (!lat || !lng) {
-                alert("此停車場暫無定位資料");
-                return;
-            }
-            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
-        }
-
-   </script>
 </body>
 </html>
