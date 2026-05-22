@@ -88,8 +88,6 @@ const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`
         });
 
 
-
-        // 向您的 Cloudflare Worker 獲取最新即時資料（含預測資料顏色識別版）
 async function fetchTDXParkingData() {
     try {
         if (MY_WORKER_URL.includes("您的帳號")) {
@@ -140,7 +138,6 @@ async function fetchTDXParkingData() {
         renderParkingList(allParkingSpots);
     }
 }
-
 
         
 // 將資料渲染至網頁卡片面版（修正變數未定義錯誤之終極防護版）
