@@ -61,52 +61,65 @@
 
     <script>
 // ==========================================
-// 核心設定：請確認您的 Cloudflare Worker 網址
-// ⚠️ 【重要設定】已加入自動破快取機制，強迫 Cloudflare 每次都吐出最新真車位！
+// 核心設定：Cloudflare Worker 網址（已整合自動破快取）
 // ==========================================
 const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`; 
 
-let allParkingSpots = []; // 儲存後端抓回來的所有車位資料
+let allParkingSpots = []; // 儲存所有車位資料
 let backupSpots = [];     // 備用核心資料庫
+
+console.log("🚀 [偵錯系統] 停車場應用腳本已成功載入！");
 
 // 網頁初始化載入
 document.addEventListener("DOMContentLoaded", () => {
+    console.log("📅 [偵錯系統] DOM 載入完成，開始初始化事件與資料...");
+    
     // 1. 自動向 Worker 獲取最新即時資料
     fetchTDXParkingData();
 
-    // 2. 自動強力綁定：讓輸入框支援按下 Enter 鍵也能觸發智慧搜尋
+    // 2. 綁定輸入框：支援按下 Enter 鍵觸發智慧搜尋
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
+        console.log("🎯 [偵錯系統] 成功鎖定輸入框 [search-input]，Enter 監聽已就緒");
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
+                console.log("⌨️ [偵錯系統] 偵測到使用者按下 Enter 鍵");
                 doAdvancedSearch();
             }
         });
+    } else {
+        console.error("❌ [偵錯系統] 錯誤：網頁中找不到 id='search-input' 的輸入框！");
     }
     
-    // 3. 自動強力綁定：點擊搜尋按鈕時觸發智慧搜尋
+    // 3. 綁定搜尋按鈕：點擊時觸發智慧搜尋
     const searchBtn = document.getElementById('search-btn');
     if (searchBtn) {
+        console.log("🎯 [偵錯系統] 成功鎖定搜尋按鈕 [search-btn]，點擊監聽已就緒");
         searchBtn.removeAttribute('onclick'); // 移除舊的 onclick 避免衝突
-        searchBtn.addEventListener('click', doAdvancedSearch);
+        searchBtn.addEventListener('click', () => {
+            console.log("🖱️ [偵錯系統] 偵測到使用者點擊了搜尋按鈕");
+            doAdvancedSearch();
+        });
+    } else {
+        console.error("❌ [偵錯系統] 錯誤：網頁中找不到 id='search-btn' 的搜尋按鈕！");
+    }
+
+    // 4. 語音按鈕的相容性防摔檢查（讓你的語音按鈕功能完美續接）
+    const voiceBtn = document.getElementById('voice-btn') || document.querySelector('.voice-btn');
+    if (voiceBtn) {
+        console.log("🎙️ [偵錯系統] 偵測到網頁中存在語音功能元件");
     }
 });
 
-// 向您的 Cloudflare Worker 獲取最新即時資料（含預測資料與收費資訊）
+// 向 Cloudflare Worker 獲取即時資料
 async function fetchTDXParkingData() {
+    console.log(`🌐 [偵錯系統] 開始連線至雲端 Worker，網址: ${MY_WORKER_URL}`);
     try {
-        if (MY_WORKER_URL.includes("您的帳號")) {
-            throw new Error("尚未設定正確的 Worker 網址");
-        }
-
         const dataResponse = await fetch(MY_WORKER_URL);
         if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (狀態碼:${dataResponse.status})`);
         
         const tdxRealData = await dataResponse.json();
-
-        if (tdxRealData && tdxRealData.error) {
-            throw new Error(tdxRealData.error);
-        }
+        console.log("📦 [偵錯系統] 成功收到雲端原始 JSON 資料，長度：", JSON.stringify(tdxRealData).length);
 
         let availList = [];
         if (tdxRealData && tdxRealData.ParkingAvailabilities) {
@@ -130,6 +143,7 @@ async function fetchTDXParkingData() {
                 };
             });
 
+            console.log(`✅ [偵錯系統] 資料解析成功！共轉換出 ${allParkingSpots.length} 筆完整車位欄位資料`);
             allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
             document.getElementById('status-text').innerText = `🟢 同步成功！已透過雲端通道載入 ${allParkingSpots.length} 個即時車位。`;
             renderParkingList(allParkingSpots.slice(0, 15));
@@ -137,7 +151,7 @@ async function fetchTDXParkingData() {
             throw new Error('雲端回傳格式不符，未偵測到車位陣列');
         }
     } catch (e) {
-        console.log("轉向安全備用模式:", e);
+        console.error("❌ [偵錯系統] 獲取即時資料失敗，進入降級備用模式。錯誤原因:", e.message);
         allParkingSpots = [...backupSpots];
         document.getElementById('status-text').innerText = `🟡 目前運行於核心備用模式 (原因:${e.message})`;
         renderParkingList(allParkingSpots);
@@ -165,8 +179,10 @@ async function doAdvancedSearch() {
     if (!searchInput) return;
     
     const keyword = searchInput.value.trim();
+    console.log(`🔍 [偵錯系統] 智慧搜尋程序啟動！使用者輸入的關鍵字為: [${keyword}]`);
     
     if (!keyword) {
+        console.log("ℹ️ [偵錯系統] 輸入框為空值，還原顯示前 15 筆熱門車位");
         renderParkingList(allParkingSpots.slice(0, 15));
         return;
     }
@@ -179,25 +195,32 @@ async function doAdvancedSearch() {
     try {
         const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
         const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
+        console.log(`🌐 [偵錯系統] 正在向 OpenStreetMap 地理編碼發出座標轉換請求: ${geoUrl}`);
         
         const geoResponse = await fetch(geoUrl, { 
             headers: { 
                 'Accept-Language': 'zh-TW',
-                'User-Agent': 'TaichungParkingApp/3.0' 
+                'User-Agent': 'TaichungParkingApp/4.0' 
             } 
         });
         
         if (geoResponse.ok) {
-            const geoData = await geoResponse.json();
+            const geoData = await geoResponse.ok ? await geoResponse.json() : [];
             if (geoData && geoData.length > 0) {
                 targetLat = parseFloat(geoData[0].lat);
                 targetLon = parseFloat(geoData[0].lon);
+                console.log(`🎯 [偵錯系統] 地名解析成功！[${keyword}] 的中心點座標為: (Lat: ${targetLat}, Lon: ${targetLon})`);
+            } else {
+                console.log(`⚠️ [偵錯系統] OpenStreetMap 找不到該地名的經緯度，將完全依賴純文字對齊。`);
             }
+        } else {
+            console.log(`⚠️ [偵錯系統] 地理編碼伺服器回應異常 (狀態碼:${geoResponse.status})，降級為文字搜尋。`);
         }
     } catch (geoError) {
-        console.log("地名解析暫時中斷，啟動純文字備援計算");
+        console.log("⚠️ [偵錯系統] 地名解析網路異常，自動啟動純文字備援計算:", geoError.message);
     }
 
+    console.log("⚙️ [偵錯系統] 開始進行全台中車位「文字模糊咬合」與「半徑範圍距離」雙軌計算...");
     let searchResults = allParkingSpots.map(spot => {
         let distance = null;
         let matchText = 0;
@@ -214,10 +237,13 @@ async function doAdvancedSearch() {
         return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
     });
 
+    // 篩選：名字符合關鍵字，或者在目標座標 3.5 公里以內
     let filteredSpots = searchResults.filter(spot => {
         return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
     });
+    console.log(`📊 [偵錯系統] 雙軌篩選完成，符合條件的停車場共有 ${filteredSpots.length} 個`);
 
+    // 排序：距離近的優先排在最前面
     filteredSpots.sort((a, b) => {
         if (a.DISTANCE !== null && b.DISTANCE !== null) {
             return a.DISTANCE - b.DISTANCE; 
@@ -231,6 +257,7 @@ async function doAdvancedSearch() {
 
 // 將資料渲染至網頁卡片面版
 function renderParkingList(spots) {
+    console.log(`🎨 [偵錯系統] 開始渲染卡片介面，本次要畫出的卡片數量: ${spots.length}`);
     const listContainer = document.getElementById('parking-list');
     listContainer.innerHTML = ""; 
 
@@ -291,10 +318,12 @@ function renderParkingList(spots) {
         `;
         listContainer.innerHTML += cardHtml;
     });
+    console.log("✨ [偵錯系統] 面版渲染繪製完畢！");
 }
 
-// 導航函數（✨ 100% 語法完全校對正確版）
+// 導航函數（🔥 100% 徹底拔除 0{lat} 語法錯誤的無毒安全版）
 function navigate(lat, lon) {
+    console.log(`🗺️ [偵錯系統] 觸發導航事件，目標座標: (Lat: ${lat}, Lon: ${lon})`);
     if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
         window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`);
     } else {
