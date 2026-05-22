@@ -69,91 +69,266 @@ const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`
 let allParkingSpots = []; // 儲存所有車位資料
 let backupSpots = [];     // 備用核心資料庫
 
-// 確保畫面上能顯示詳細錯誤的輔助函數
-function showVisualError(message, details = "") {
-    const statusEl = document.getElementById('status-text');
-    if (statusEl) {
-        statusEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">❌ 偵錯警報：${message}</span><br><small style="color: #71717a; display: block; mt-1;">詳細原因: ${details}</small>`;
-    }
-}
-
-console.log("🚀 [終極偵錯] 腳本已成功下載，無任何 JS 語法錯誤！");
+console.log("🚀 [終極偵錯] 腳本已成功載入，準備修復 HTML 舊函數綁定！");
 
 // 網頁初始化載入
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("📅 [終極偵錯] 網頁 DOM 載入完成，開始綁定按鈕...");
-    
-    // 1. 自動向 Worker 獲取最新即時資料
+    console.log("📅 [終極偵錯] 網頁 DOM 載入完成，開始載入即時車位...");
     fetchTDXParkingData();
-
-    // 2. 綁定輸入框：支援按下 Enter 鍵觸發智慧搜尋
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        console.log("🎯 [終極偵錯] 成功定位輸入框 [search-input]");
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                console.log("⌨️ [終極偵錯] 按下 Enter 鍵觸發搜尋");
-                doAdvancedSearch();
-            }
-        });
-    } else {
-        console.warn("⚠️ [終極偵錯] 警告：畫面上找不到 id='search-input' 的輸入框");
-    }
-    
-    // 3. 綁定搜尋按鈕：點擊時觸發智慧搜尋
-    const searchBtn = document.getElementById('search-btn');
-    if (searchBtn) {
-        console.log("🎯 [終極偵錯] 成功定位搜尋按鈕 [search-btn]");
-        searchBtn.removeAttribute('onclick'); // 移除舊的 onclick 避免衝突
-        searchBtn.addEventListener('click', () => {
-            console.log("鼠标 [終極偵錯] 點擊搜尋按鈕觸發搜尋");
-            doAdvancedSearch();
-        });
-    } else {
-        console.warn("⚠️ [終極偵錯] 警告：畫面上找不到 id='search-btn' 的搜尋按鈕");
-    }
 });
+
+// 前台 HTML 舊按鈕相容橋樑：文字搜尋 (修正 handleTextSearch is not defined)
+function handleTextSearch() {
+    console.log("🖱️ [相容層] 偵測到使用者點擊了舊版 HTML 搜尋按鈕");
+    doAdvancedSearch();
+}
+
+// 前台 HTML 舊按鈕相容橋樑：語音搜尋 (修正 toggleVoiceSearch is not defined)
+function toggleVoiceSearch() {
+    console.log("🎙️ [相容層] 偵測到使用者點擊了舊版 HTML 語音按鈕");
+    
+    // 檢查瀏覽器是否支援語音辨識
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("您的瀏覽器不支援語音辨識功能，請使用 Chrome 瀏覽器或手動輸入關鍵字 😢");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-TW';
+    recognition.interimResults = false;
+
+    const statusEl = document.getElementById('status-text');
+    const searchInput = document.getElementById('search-input');
+
+    if (statusEl) statusEl.innerText = "🎙️ 正在聆聽中，請說出想搜尋的地點（例如：中友百貨）...";
+
+    recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        console.log("🗣️ [語音辨識成功]:", text);
+        if (searchInput) {
+            searchInput.value = text;
+            doAdvancedSearch();
+        }
+    };
+
+    recognition.onerror = (err) => {
+        console.error("❌ [語音辨識錯誤]:", err);
+        if (statusEl) statusEl.innerText = "❌ 語音辨識失敗，請再試一次或手動輸入。";
+    };
+
+    recognition.start();
+}
 
 // 向 Cloudflare Worker 獲取即時資料
 async function fetchTDXParkingData() {
-    console.log(`🌐 [終極偵錯] 正在發起網路請求，目標網址: ${MY_WORKER_URL}`);
-    
+    console.log(`🌐 [終極偵錯] 正在呼叫 API: ${MY_WORKER_URL}`);
     try {
-        // 設定 8 秒超時控制，防止瀏覽器無止境死等
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-        console.log("⏳ [終極偵錯] 正在等待 Cloudflare Worker 回應 (最多等 8 秒)...");
-        const dataResponse = await fetch(MY_WORKER_URL, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        console.log(`📡 [終極偵錯] 收到伺服器回應！HTTP 狀態碼: ${dataResponse.status} (${dataResponse.statusText})`);
+        const dataResponse = await fetch(MY_WORKER_URL);
+        if (!dataResponse.ok) throw new Error(`雲端通道回應異常 (狀態碼:${dataResponse.status})`);
         
-        if (!dataResponse.ok) {
-            throw new Error(`Cloudflare Worker 伺服器拒絕連線，代碼: ${dataResponse.status}`);
-        }
-        
-        console.log("🧪 [終極偵錯] 開始解析 JSON 資料結構...");
         const tdxRealData = await dataResponse.json();
-        console.log("📦 [終極偵錯] JSON 解析成功！原始資料內容:", tdxRealData);
+        console.log("📦 [終極偵錯] 資料下載完成！");
 
         let availList = [];
         if (tdxRealData && tdxRealData.ParkingAvailabilities) {
             availList = tdxRealData.ParkingAvailabilities;
-            console.log(`📋 [終極偵錯] 偵測到封裝格式 (ParkingAvailabilities)，陣列長度: ${availList.length}`);
         } else if (Array.isArray(tdxRealData)) {
             availList = tdxRealData;
-            console.log(`📋 [終極偵錯] 偵測到標準陣列格式，陣列長度: ${availList.length}`);
         }
 
         if (availList && Array.isArray(availList) && availList.length > 0) {
-            allParkingSpots = availList.map((item, index) => {
+            allParkingSpots = availList.map(item => {
                 const targetName = item.POSITION || (item.CarParkName && item.CarParkName.Zh_tw) || "公有停車場";
                 return {
                     POSITION: targetName,
                     ADDRESS: item.ADDRESS || item.CarParkAddress || item.Address || "台中市區域",
                     TOTAL: parseInt(item.TOTAL || item.TotalSpaces) || 100,
-                    AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : (item.AvailableSpaces !== undefined ? item
+                    AVAILABLE: item.AVAILABLE !== undefined ? item.AVAILABLE : (item.AvailableSpaces !== undefined ? item.AvailableSpaces : 0),
+                    IS_PREDICTED: item.IS_PREDICTED === true, 
+                    FARE_DESC: item.FARE_DESC || "依現場公告費率為準", 
+                    LATITUDE: parseFloat(item.LATITUDE || item.Latitude) || 24.1372,
+                    LONGITUDE: parseFloat(item.LONGITUDE || item.Longitude) || 120.6856
+                };
+            });
+
+            console.log(`✅ [終極偵錯] 資料解析成功，共 ${allParkingSpots.length} 筆`);
+            allParkingSpots.sort((a, b) => b.AVAILABLE - a.AVAILABLE);
+            
+            const statusEl = document.getElementById('status-text');
+            if (statusEl) {
+                statusEl.innerText = `🟢 同步成功！已透過雲端通道載入 ${allParkingSpots.length} 個即時車位。`;
+            }
+            renderParkingList(allParkingSpots.slice(0, 15));
+        } else {
+            throw new Error('雲端回傳格式不符，未偵測到車位陣列');
+        }
+    } catch (e) {
+        console.error("❌ [終極偵錯] 連線失敗:", e.message);
+        const statusEl = document.getElementById('status-text');
+        if (statusEl) statusEl.innerText = `🟡 目前運行於核心備用模式 (原因:${e.message})`;
+        allParkingSpots = [...backupSpots];
+        renderParkingList(allParkingSpots);
+    }
+}
+
+// 計算經緯度公里距離公式 (Haversine 公式)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; 
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; 
+}
+
+// 智慧核心：地名轉座標 ＋ 半徑範圍雙軌搜尋
+async function doAdvancedSearch() {
+    const searchInput = document.getElementById('search-input');
+    if (!searchInput) return;
+    
+    const keyword = searchInput.value.trim();
+    console.log(`🔍 [終極偵錯] 開始搜尋關鍵字: [${keyword}]`);
+    
+    if (!keyword) {
+        renderParkingList(allParkingSpots.slice(0, 15));
+        return;
+    }
+
+    const statusEl = document.getElementById('status-text');
+    if (statusEl) statusEl.innerText = `🔍 正在計算 「${keyword}」 的周邊車位與距離...`;
+
+    let targetLat = null;
+    let targetLon = null;
+
+    try {
+        const queryText = keyword.includes("台中") ? keyword : `台中 ${keyword}`;
+        const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`;
+        
+        const geoResponse = await fetch(geoUrl, { 
+            headers: { 
+                'Accept-Language': 'zh-TW',
+                'User-Agent': 'TaichungParkingApp/8.0' 
+            } 
+        });
+        
+        if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            if (geoData && geoData.length > 0) {
+                targetLat = parseFloat(geoData[0].lat);
+                targetLon = parseFloat(geoData[0].lon);
+                console.log(`🎯 [終極偵錯] 經緯度解析成功: (${targetLat}, ${targetLon})`);
+            }
+        }
+    } catch (geoError) {
+        console.log("⚠️ [終極偵錯] 地理編碼異常，使用純文字搜尋");
+    }
+
+    let searchResults = allParkingSpots.map(spot => {
+        let distance = null;
+        let matchText = 0;
+
+        if (targetLat !== null && targetLon !== null) {
+            distance = calculateDistance(targetLat, targetLon, spot.LATITUDE, spot.LONGITUDE);
+        }
+
+        if (spot.POSITION.toLowerCase().includes(keyword.toLowerCase()) || 
+            spot.ADDRESS.toLowerCase().includes(keyword.toLowerCase())) {
+            matchText = 1; 
+        }
+
+        return { ...spot, DISTANCE: distance, MATCH_TEXT: matchText };
+    });
+
+    let filteredSpots = searchResults.filter(spot => {
+        return spot.MATCH_TEXT === 1 || (spot.DISTANCE !== null && spot.DISTANCE <= 3500);
+    });
+
+    filteredSpots.sort((a, b) => {
+        if (a.DISTANCE !== null && b.DISTANCE !== null) {
+            return a.DISTANCE - b.DISTANCE; 
+        }
+        return b.AVAILABLE - a.AVAILABLE;
+    });
+
+    renderParkingList(filteredSpots);
+    if (statusEl) statusEl.innerText = `🟢 搜尋完成！已列出「${keyword}」周邊最佳車位。`;
+}
+
+// 將資料渲染至網頁卡片面版
+function renderParkingList(spots) {
+    const listContainer = document.getElementById('parking-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = ""; 
+
+    if (!spots || spots.length === 0) {
+        listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">找不到相符的停車場 😢</div>`;
+        return;
+    }
+
+    spots.forEach(spot => {
+        let countColor = "text-green-600 font-black";
+        let bgColor = "border-gray-200";
+        let fontStyle = ""; 
+        
+        if (spot.IS_PREDICTED === true) {
+            countColor = "text-amber-500 font-extrabold"; 
+            fontStyle = "italic"; 
+        } else {
+            if (spot.AVAILABLE <= 0) {
+                countColor = "text-red-500 font-black";
+                bgColor = "bg-red-50 border-red-100";
+            } else if (spot.AVAILABLE < 10) {
+                countColor = "text-yellow-600 font-black";
+            }
+        }
+
+        const cardHtml = `
+            <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
+                <div class="flex-1 pr-2">
+                    <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
+                    <p class="text-gray-500 text-xs mt-1"><i class="fa-solid fa-location-dot text-red-500"></i> ${spot.ADDRESS}</p>
+                    <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-100">
+                        <i class="fa-solid fa-circle-info text-blue-400"></i> 收費：${spot.FARE_DESC}
+                    </p>
+                    <div class="flex gap-2 mt-2 items-center flex-wrap">
+                        <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
+                        ${spot.IS_PREDICTED === true
+                            ? `<span class="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-amber-200">🤖 大數據預估</span>`
+                            : `<span class="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-emerald-200">⚡ 官方即時連線</span>`
+                        }
+                        ${(spot.DISTANCE !== null && spot.DISTANCE !== undefined) 
+                            ? `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200">距離約 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>` 
+                            : ''
+                        } 
+                    </div>
+                </div>
+                <div class="text-right flex flex-col items-end gap-1 min-w-[90px]">
+                    <div class="text-[11px] text-gray-400">剩餘車位</div>
+                    <div class="text-2xl ${countColor} ${fontStyle}">${spot.AVAILABLE}</div>
+                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-1 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-sm">
+                        導航
+                    </button>
+                </div>
+            </div>
+        `;
+        listContainer.innerHTML += cardHtml;
+    });
+}
+
+// 導航函數
+function navigate(lat, lon) {
+    if (navigator.userAgent.match(/(iPhone|iPad|iPod|Macintosh)/i)) {
+        window.open(`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`, '_blank');
+    } else {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`, '_blank');
+    }
+}
         
     <script> 
 </body>
