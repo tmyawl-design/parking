@@ -156,42 +156,46 @@ const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=
                 return; 
             }
 
-            // 讀取相容欄位
-            const pLat = parseFloat(park.lat || park.Y);
-            const pLon = parseFloat(park.lon || park.X);
-            if (!pLat || !pLon) return;
+// 🎯 核心修正 1：超強經緯度相容防禦！無論後台給大寫 X/Y 還是小寫 lat/lon，通通接住！
+    const pLat = parseFloat(park.Y || park.lat || park.raw_lat);
+    const pLon = parseFloat(park.X || park.lon || park.raw_lon);
+    
+    // 如果真的沒有經緯度，才跳過這筆
+    if (!pLat || !pLon) return;
 
-            // 哈維辛公式計算精確公尺數
-            const R = 6371000; 
-            const phi1 = targetLat * Math.PI / 180;
-            const phi2 = pLat * Math.PI / 180;
-            const deltaPhi = (pLat - targetLat) * Math.PI / 180;
-            const deltaLambda = (pLon - targetLon) * Math.PI / 180;
+    // 🗺️ 哈維辛公式計算精確公尺數 (維持你原本的代碼)
+    const R = 6371000; 
+    const phi1 = targetLat * Math.PI / 180;
+    const phi2 = pLat * Math.PI / 180;
+    const deltaPhi = (pLat - targetLat) * Math.PI / 180;
+    const deltaLambda = (pLon - targetLon) * Math.PI / 180;
 
-            const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-                      Math.cos(phi1) * Math.cos(phi2) *
-                      Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            const distance = R * c; 
+    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; 
 
-            // 🎯 放大雷達：捕捉 5 公里（5000公尺）內的所有車位！
-if (distance <= customRadius) {
-        const name = park.name || park.PARK_NAME || "未命名停車場";
-        const address = park.address || park.ADDRESS || "台中市區域";
-        const total = park.total !== undefined ? park.total : (park.TOTAL_CAR || 0);
-        const available = park.available !== undefined ? park.available : (park.AVAILABLE_CAR || 0);
+    // 🎯 只要在搜尋半徑內（前端與後台同步微調為 5000 公尺，即 5 公里）
+    if (distance <= customRadius) {
+        // 🎯 核心修正 2：相容後台所有的欄位命名
+        const name = park.PARK_NAME || park.name || "未命名停車場";
+        const address = park.ADDRESS || park.address || "台中市區域";
+        const total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
+        const available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available || 0);
+        const type = park.type || "立體/建物";
         
-        // 🎯 安全讀取收費文字
-        const fare = park.fare || park.fare_desc || park.PAY_DESC || "費率依現場公告為準";
-        const parkingId = park.id || park.ID || ""; 
+        // 抓取即時燈號與文字
+        const fare = park.PAY_DESC || park.fare_desc || park.fare || "費率依現場公告為準";
+        
+        // 🎯 核心修正 3：對齊後台強制導出的標準小寫 id 或大寫 ID
+        const parkingId = park.id || park.ID || park.parking_id || ""; 
 
-        // 🎯 治本修正：精確座標「直達導航」網址，點擊直接進入導航畫面，免點兩次！
-        const pLat = parseFloat(park.lat || park.Y);
-        const pLon = parseFloat(park.lon || park.X);
+        // 🎯 核心修正 4：利用精確座標打造「一鍵直達、免點二次」官方導航網址
         const cleanName = name.replace(/🏢|🚗/g, '').trim();
         const googleNavigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLon}&destination_place_id=${encodeURIComponent(cleanName)}`;
 
-        const isOffstreet = name.includes("🏢");
+        const isOffstreet = type.includes("立體") || type.includes("建物") || name.includes("🏢");
         const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
 
         listEl.innerHTML += `
