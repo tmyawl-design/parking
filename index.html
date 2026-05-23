@@ -281,26 +281,22 @@ function renderParkingList(spots) {
             distanceStr = `<span class="bg-purple-50 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-purple-200">距離目標 ${spot.DISTANCE < 1000 ? Math.round(spot.DISTANCE) + ' 公尺' : (spot.DISTANCE / 1000).toFixed(1) + ' 公里'}</span>`;
         }
 
-        const cardHtml = `
+const cardHtml = `
             <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
-                
-// 📄 找到生成卡片的地方，把裡面的註解文字徹底刪掉，只留下純 HTML 語法：
-<h3 class="font-bold text-gray-800 text-base"> ${spot.POSITION || spot.position || "未知停車場"} </h3>
-<p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS || spot.address || "台中市區域"} </p>
-<p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費： ${spot.FARE_DESC || spot.fare_desc || "依現場公告為準"} </p>
-                  
-                    
+                    <h3 class="font-bold text-gray-800 text-base"> ${spot.POSITION || spot.position || "未知停車場"} </h3>
+                    <p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS || spot.address || "台中市區域"} </p>
+                    <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費： ${spot.FARE_DESC || spot.fare_desc || "依現場公告為準"} </p>
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
-                        <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
-                        <span class="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-blue-200">ℹ️ 資料來源：台中市即時交通網</span>
-                        ${distanceStr} 
+                        <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL || spot.total || 50} </span>
+                        <span class="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-blue-200">ℹ️ 資料來源：台中市即時交通網 </span>
+                        ${distanceStr}
                     </div>
                 </div>
                 <div class="text-right flex flex-col items-end gap-1 min-w-[95px]">
                     <div class="text-[11px] text-gray-400">剩餘車位</div>
-                    <div class="text-2xl ${countColor}">${spot.AVAILABLE}</div>
-                    <button onclick="navigate(${spot.LATITUDE}, ${spot.LONGITUDE})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs shadow-sm">導航</button>
+                    <div class="text-2xl ${countColor}"> ${spot.AVAILABLE !== undefined ? spot.AVAILABLE : (spot.available_car !== undefined ? spot.available_car : 0)} </div>
+                    <button onclick="navigate(${spot.LATITUDE || spot.latitude}, ${spot.LONGITUDE || spot.longitude})" class="bg-emerald-500 text-white font-medium py-1 px-3 rounded-lg text-xs shadow-sm">導航</button>
                 </div>
             </div>
         `;
