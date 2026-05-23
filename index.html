@@ -236,7 +236,7 @@ async function doAdvancedSearch() {
             if (geoResponse.ok) {
                 const geoData = await geoResponse.json();
                 if (geoData && geoData.features && geoData.features.length > 0) {
-                // Photon 的座標藏在 geometry.coordinates 裡面，格式為 [經度, 緯度]
+                // 🎯 確保全部統一使用大寫 D 的 geoData
                 targetLon = parseFloat(geoData.features[0].geometry.coordinates[0]);
                 targetLat = parseFloat(geoData.features[0].geometry.coordinates[1]);
                 }
