@@ -289,8 +289,8 @@ async function doAdvancedSearch() {
 
     // 3. 發射雷達
     if (targetLat !== null && targetLon !== null) {
-        // 💡 為了防止你的距離公式在特定新景點卡死，我們直接把雷達放大到 5000 公尺（5公里）
-        fetchLiveTrafficAPI(targetLat, targetLon, keyword, 5000);
+        // 💡 為了防止你的距離公式在特定新景點卡死，我們直接把雷達放大到 3000 公尺（3公里）
+        fetchLiveTrafficAPI(targetLat, targetLon, keyword, 3000);
     } else {
         if (statusEl) statusEl.innerText = "❌ 找不到位置。";
         alert("❌ 系統無法精確定位此地點！請改輸入路名或大路標試試看。");
