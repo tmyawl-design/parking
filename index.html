@@ -212,6 +212,7 @@ async function doAdvancedSearch() {
 
     const lowerKey = keyword.toLowerCase();
 
+    // 1. 景點座標攔截保險箱（維持原功能）
     if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
         targetLat = 24.1354; targetLon = 120.6934;
     } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園")) {
@@ -228,22 +229,19 @@ async function doAdvancedSearch() {
         targetLat = 24.2274; targetLon = 120.6482; 
     }
 
-if (targetLat === null && targetLon === null) {
+    // 2. 若不在保險箱，則啟動 Photon 智慧地理編碼
+    if (targetLat === null && targetLon === null) {
         try {
-            // 🧠 治本關鍵：強制加上 "台中市 "，讓國際引擎 Photon 能 100% 聽懂「台中市 中友百貨」、「台中市 中央公園」
             const cleanKeyword = keyword.includes("台中") ? keyword : `台中市 ${keyword}`;
-            
             const geoResponse = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(cleanKeyword)}&lon=120.6468&lat=24.1618&limit=1&lang=zh&bbox=120.0,21.8,122.1,25.3`);
             
             if (geoResponse.ok) {
                 const geoData = await geoResponse.json();
-                
                 if (geoData && geoData.features && geoData.features.length > 0) {
                     targetLon = parseFloat(geoData.features[0].geometry.coordinates[0]);
                     targetLat = parseFloat(geoData.features[0].geometry.coordinates[1]);
-                    console.log(`🎯 Photon 精確定位成功: ${cleanKeyword} -> (${targetLat}, ${targetLon})`);
+                    console.log(`🎯 Photon 定位成功: ${cleanKeyword} -> (${targetLat}, ${targetLon})`);
                 } else {
-                    // 🛡️ 【核心防禦】如果找不到，立刻清空座標，不准吃上一把留下來的髒資料！
                     targetLat = null;
                     targetLon = null;
                 }
@@ -254,11 +252,8 @@ if (targetLat === null && targetLon === null) {
             targetLon = null;
         }
     }
-        } catch (e) {
-            console.log("Error", e);
-        }
-    }
 
+    // 3. 發射雷達
     if (targetLat !== null && targetLon !== null) {
         fetchLiveTrafficAPI(targetLat, targetLon, keyword);
     } else {
