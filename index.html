@@ -230,16 +230,15 @@ async function doAdvancedSearch() {
 
     if (targetLat === null && targetLon === null) {
         try {
-            const queryText = keyword.includes("台中") ? keyword : "台中市 " + keyword;
-            const geoResponse = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(queryText), {
-                headers: { "Accept-Control-Allow-Languages": "zh-TW" }
-            });
+        // 🚀 使用 Photon API，強迫以台中市中心為權重向外精準搜尋
+        const geoResponse = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(keyword)}&lon=120.6468&lat=24.1618&limit=1`);
             
             if (geoResponse.ok) {
                 const geoData = await geoResponse.json();
-                if (geoData && geoData.length > 0) {
-                    targetLat = parseFloat(geoData[0].lat);
-                    targetLon = parseFloat(geoData[0].lon);
+                if (geoData && geoData.features && geoData.features.length > 0) {
+                // Photon 的座標藏在 geometry.coordinates 裡面，格式為 [經度, 緯度]
+                targetLon = parseFloat(geoData.features[0].geometry.coordinates[0]);
+                targetLat = parseFloat(geoData.features[0].geometry.coordinates[1]);
                 }
             }
         } catch (e) {
