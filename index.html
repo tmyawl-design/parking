@@ -69,6 +69,9 @@
 </footer>
     
 <script>
+// 🚀 請在這裡貼上你真實的 Cloudflare Worker 網址
+const MY_WORKER_URL = `https://tdx-proxy.tmya-w-l.workers.dev?_ts=${Date.now()}`; 
+
 // 預設中心點座標（台中市政府）
 const TAICHUNG_CENTER_LAT = 24.1618;
 const TAICHUNG_CENTER_LON = 120.6468;
@@ -93,7 +96,6 @@ function getUserLocation() {
                 userLon = position.coords.longitude;
                 hasValidUserLocation = true;
                 console.log(`📍 成功取得 GPS: ${userLat}, ${userLon}`);
-                // 拿到真實定位後，自動刷新一次身邊的車位
                 fetchLiveTrafficAPI(userLat, userLon, "您的目前位置周邊");
             },
             (error) => { console.warn("⚠️ 瀏覽器未授權定位，保持預設中心點。"); },
@@ -119,32 +121,29 @@ function toggleVoiceSearch() {
     recognition.start();
 }
 
-// 🎯 核心大改寫：向台中市交通局發射動態半徑雷達
+// 🎯 核心大改寫：改呼叫你自己的 Cloudflare Worker 繞過 CORS
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
     const statusEl = document.getElementById('status-text');
-    // 設定掃描半徑：1000 公尺 (1公里) 實用度最高
-    const radiusMeters = 1000; 
+    const radiusMeters = 1000; // 1公里半徑
     
-    // 💡 拼接你挖出來的黃金真貨 API (加入防止快取的快取機制)
-    const trafficApiUrl = `https://e-traffic.taichung.gov.tw/ATIS_TCC/api/ParkingSectionAPI/${targetLon}/${targetLat}/${radiusMeters}?_=${Date.now()}`;
+    // 💡 串接你的 Worker 網址，並把參數帶過去
+    const trafficApiUrl = `${MY_WORKER_URL}?lon=${targetLon}&lat=${targetLat}&radius=${radiusMeters}`;
 
     try {
-        if (statusEl) statusEl.innerText = `⚡ 正在掃描「${locationName}」方圓 1 公里的公/民營即時車位...`;
+        if (statusEl) statusEl.innerText = `⚡ 正在透過 Worker 掃描「${locationName}」方圓 1 公里的車位...`;
         
         const response = await fetch(trafficApiUrl);
-        if (!response.ok) throw new Error(`API 響應異常: ${response.status}`);
+        if (!response.ok) throw new Error(`Worker 響應異常: ${response.status}`);
         
         const rawData = await response.json();
-        console.log("📦 交通局原始回傳資料:", rawData);
+        console.log("📦 Worker 轉發回傳資料:", rawData);
 
-        // 判斷回傳資料結構是否正確
         if (rawData && Array.isArray(rawData)) {
-            // 🌟 欄位對齊 (Data Mapping)：將官方特殊欄位，轉換成網頁卡片看得懂的通用欄位
+            // 🌟 欄位對齊：將交通局特有的欄位，格式化為前端名片卡看懂的欄位
             const formattedSpots = rawData.map(item => {
-                // 官方剩餘車位欄位為 AVAILABLE_CAR
                 let availableCount = parseInt(item.AVAILABLE_CAR);
                 if (isNaN(availableCount) || availableCount < 0) {
-                    availableCount = 0; // 防禦機制
+                    availableCount = 0;
                 }
 
                 // 計算該車位離搜尋中心點的距離
@@ -156,10 +155,9 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
                     TOTAL: parseInt(item.TOTAL_CAR) || 50,
                     AVAILABLE: availableCount,
                     FARE_DESC: item.PAY_DESC || "依現場公告為準",
-                    LATITUDE: parseFloat(item.Y),  // 官方的 Y 是緯度
-                    LONGITUDE: parseFloat(item.X), // 官方的 X 是經度
-                    DISTANCE: dist,
-                    IS_PREDICTED: false // 這全都是真實即時，不需要大數據預估了！
+                    LATITUDE: parseFloat(item.Y),  // 交通局的 Y 是緯度
+                    LONGITUDE: parseFloat(item.X), // 交通局的 X 是經度
+                    DISTANCE: dist
                 };
             });
 
@@ -172,7 +170,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
             renderParkingList([]);
         }
     } catch (e) {
-        console.error("💥 交通局 API 連線失敗:", e);
+        console.error("💥 Worker 連線失敗:", e);
         if (statusEl) statusEl.innerText = `🔴 交通局 API 連線異常，請稍後再試。`;
     }
 }
@@ -187,7 +185,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 🎯 搜尋按鈕點擊：仿 Google Maps 先解碼、後發射雷達
+// 🎯 搜尋按鈕點擊：地理定位後發射雷達
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -200,7 +198,7 @@ async function doAdvancedSearch() {
     let targetLat = null, targetLon = null;
     const lowerKey = keyword.toLowerCase();
 
-    // 1. 針對大魔王景點做「座標保險箱攔截」，避免免費地圖 API 翻車
+    // 1. 景點座標攔截保險箱
     if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
         targetLat = 24.1354; targetLon = 120.6934;
     } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園")) {
@@ -228,7 +226,7 @@ async function doAdvancedSearch() {
         } catch (e) { console.log("地理解碼網路異常"); }
     }
 
-    // 3. 核心大改變：只要拿到了座標，立刻用這個座標發射新雷達！
+    // 3. 拿到座標後，叫 Worker 重新去向交通局掃描該區周邊
     if (targetLat !== null && targetLon !== null) {
         fetchLiveTrafficAPI(targetLat, targetLon, keyword);
     } else {
@@ -267,7 +265,7 @@ function renderParkingList(spots) {
                 <div class="flex-1 pr-2">
                     <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
                     <p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS}</p>
-                    <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收寫：${spot.FARE_DESC}</p>
+                    <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費：${spot.FARE_DESC}</p>
                     
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
