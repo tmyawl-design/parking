@@ -41,7 +41,13 @@
                 </button>
             </div>
         </div>
-
+        
+<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+    <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+        <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
+        <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
+    </label>
+</div>
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
             <p id="status-text" class="text-gray-600 font-medium">正在透過雲端通道同步全台中車位...</p>
             <p id="result-text" class="text-xl font-bold text-blue-600 mt-1 hidden">「 正在辨識中... 」</p>
@@ -122,63 +128,110 @@ function toggleVoiceSearch() {
 }
 
 // 🎯 核心大改寫：改呼叫你自己的 Cloudflare Worker 繞過 CORS
-async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
+async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "", customRadius = 10000) {
     const statusEl = document.getElementById('status-text');
+    const listEl = document.getElementById('parking-list');
+    const showRoadCheckbox = document.getElementById('show-road-parking');
     
-    // 🎯 改成 3000 (代表方圓 3 公里內的停車場與路邊車段通通要抓！)
-    const radiusMeters = 3000;
-    
-    // 💡 串接你的 Worker 網址，並把參數帶過去
-    const trafficApiUrl = `${MY_WORKER_URL}?lon=${targetLon}&lat=${targetLat}&radius=${radiusMeters}`;
+    // 🧠 智慧判斷：使用者有沒有勾選路邊車格
+    const includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
+
+    if (statusEl) statusEl.innerText = "🚗 正在連線雲端通道，撈取台中大數據車位...";
 
     try {
-        if (statusEl) statusEl.innerText = `⚡ 正在透過 Worker 掃描「${locationName}」方圓 3 公里的車位...`;
+        // 🛰️ 呼叫你的 Worker（加上 lat, lon, radius 參數讓後台初步過濾，瘦身傳輸量！）
+        const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=${targetLon}&radius=${customRadius}`;
+        const response = await fetch(workerUrl); 
+        if (!response.ok) throw new Error("Worker 連線失敗");
         
-        const response = await fetch(trafficApiUrl);
-        if (!response.ok) throw new Error(`Worker 響應異常: ${response.status}`);
-        
-        const rawData = await response.json();
-        console.log("📦 Worker 轉發回傳資料:", rawData);
+        const allTaichungParkings = await response.json();
+        let nearbyResults = [];
 
-        if (rawData && Array.isArray(rawData)) {
-// 🌟 前端欄位對齊：大小寫雙重相容版
-const formattedSpots = rawData.map(item => {
-    // 1. 讀取經緯度（大小寫防禦）
-    let spotLat = parseFloat(item.Y || item.y || item.LATITUDE || 0);
-    let spotLon = parseFloat(item.X || item.x || item.LONGITUDE || 0);
-    
-    let dist = calculateDistance(targetLat, targetLon, spotLat, spotLon);
+        // 🧠 本地端高速地理雷達
+        allTaichungParkings.forEach(park => {
+            // 🚨 核心效能優化：如果使用者沒勾選路邊車格，而這筆資料是路邊，直接跳過不處理！
+            if (!includeRoad && (park.type === "路邊" || park.PARK_NAME.includes("🚗"))) {
+                return; 
+            }
 
-    // 2. 讀取剩餘與總車位（大小寫防禦，防範 0 筆被丟包）
-    let availableCount = parseInt(item.AVAILABLE_CAR || item.available_car || 0);
-    let totalCount = parseInt(item.TOTAL_CAR || item.total_car || 50);
+            // 讀取相容欄位
+            const pLat = parseFloat(park.lat || park.Y);
+            const pLon = parseFloat(park.lon || park.X);
+            if (!pLat || !pLon) return;
 
-    // 3. 讀取名稱（防範空名稱導致整條卡片死機）
-    let spotName = item.PARK_NAME || item.park_name || "未知停車場";
+            // 哈維辛公式計算精確公尺數
+            const R = 6371000; 
+            const phi1 = targetLat * Math.PI / 180;
+            const phi2 = pLat * Math.PI / 180;
+            const deltaPhi = (pLat - targetLat) * Math.PI / 180;
+            const deltaLambda = (pLon - targetLon) * Math.PI / 180;
 
-    return {
-        POSITION: spotName,
-        ADDRESS: item.ADDRESS || item.address || "台中市區域",
-        TOTAL: totalCount,
-        AVAILABLE: availableCount,
-        FARE_DESC: item.PAY_DESC || item.pay_desc || "依現場公告為準",
-        LATITUDE: spotLat,
-        LONGITUDE: spotLon,
-        DISTANCE: dist
-    };
-});
+            const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                      Math.cos(phi1) * Math.cos(phi2) *
+                      Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c; 
 
-            // 按距離由近到遠排序
-            formattedSpots.sort((a, b) => a.DISTANCE - b.DISTANCE);
+            // 🎯 放大雷達：捕捉 10 公里（10000公尺）內的所有車位！
+            if (distance <= customRadius) {
+                // 統一對應欄位名稱，防止因後台格式變動而抓不到
+                const name = park.name || park.PARK_NAME || "未命名停車場";
+                const address = park.address || park.ADDRESS || "台中市區域";
+                const total = park.total !== undefined ? park.total : (park.TOTAL_CAR || 0);
+                const available = park.available !== undefined ? park.available : (park.AVAILABLE_CAR || 0);
+                const type = park.type || (name.includes("🏢") ? "立體/建物" : "路邊");
+                const fare = park.fare_desc || park.PAY_DESC || "費率依現場公告為準";
 
-            if (statusEl) statusEl.innerText = `🟢 成功！已連線撈出「${locationName}」周邊 ${formattedSpots.length} 個真實車位。`;
-            renderParkingList(formattedSpots);
-        } else {
-            renderParkingList([]);
+                nearbyResults.push({
+                    name: name,
+                    address: address,
+                    total: total,
+                    available: available,
+                    distance: distance,
+                    type: type,
+                    fare: fare
+                });
+            }
+        });
+
+        // 依據距離由近到遠排序
+        nearbyResults.sort((a, b) => a.distance - b.distance);
+
+        // 渲染畫面
+        if (listEl) {
+            listEl.innerHTML = "";
+            if (nearbyResults.length === 0) {
+                let msg = `❌ 「${locationName}」方圓 10 公里內查無立體停車場。`;
+                if (!includeRoad) msg += " (您可以試著勾選包含路邊車格再搜尋)";
+                if (statusEl) statusEl.innerText = msg;
+                return;
+            }
+
+            if (statusEl) statusEl.innerText = `🟢 成功！雷達已搜出「${locationName}」周邊 10 公里內 ${nearbyResults.length} 個即時車位！`;
+
+            nearbyResults.forEach(park => {
+                const isOffstreet = park.type.includes("立體") || park.type.includes("建物") || park.name.includes("🏢");
+                const icon = isOffstreet ? "🏢" : "🚗";
+                const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+                
+                listEl.innerHTML += `
+                    <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                        <h3 style="margin-top:0; font-size:1.15em;">${park.name}</h3>
+                        <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${park.address}</p>
+                        <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${park.fare}</p>
+                        <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${park.distance < 1000 ? Math.round(park.distance) + ' 公尺' : (park.distance / 1000).toFixed(1) + ' 公里'}</span></p>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
+                            <div>總車位: ${park.total} | <strong>剩餘車位: <span style="color:${park.available > 0 ? '#10b981' : '#ef4444'}; font-size:1.25em;">${park.available}</span></strong></div>
+                            <button onclick="window.open('https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(park.name.replace(/🏢|🚗/g, ''))}')" style="background:${badgeColor}; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.9em;">導航</button>
+                        </div>
+                    </div>
+                `;
+            });
         }
-    } catch (e) {
-        console.error("💥 Worker 連線失敗:", e);
-        if (statusEl) statusEl.innerText = `🔴 交通局 API 連線異常，請稍後再試。`;
+
+    } catch (error) {
+        console.error("雷達撈取失敗:", error);
+        if (statusEl) statusEl.innerText = "❌ 無法取得即時車位資料，請檢查雲端通道連線。";
     }
 }
 
