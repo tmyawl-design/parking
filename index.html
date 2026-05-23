@@ -141,8 +141,8 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "", cust
     if (statusEl) statusEl.innerText = "🚗 正在連線雲端通道，撈取台中大數據車位...";
 
     try {
-        // 🛰️ 呼叫你的 Worker（加上 lat, lon, radius 參數讓後台初步過濾，瘦身傳輸量！）
-const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=${targetLon}&radius=${customRadius}&includeRoad=${includeRoad}`;
+// 🚀 請將前端網頁呼叫 Worker 的 radius 參數微調為 5000 (5公里)（加上 lat, lon, radius 參數讓後台初步過濾，瘦身傳輸量！）
+const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=${targetLon}&radius=5000&includeRoad=${includeRoad}`;
         const response = await fetch(workerUrl); 
         if (!response.ok) throw new Error("Worker 連線失敗");
         
@@ -216,26 +216,26 @@ const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=
                 const icon = isOffstreet ? "🏢" : "🚗";
                 const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
                 
-// 🏢 在前端渲染大樓卡片的地方，修改按鈕區塊：
-const parkingId = park.id || ""; // 確保後台有傳回 item.ID
+// 🎯 修正：同時相容大寫 ID 與小寫 id
+    const parkingId = park.id || park.ID || ""; 
 
-listEl.innerHTML += `
-    <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-        <h3 style="margin-top:0; font-size:1.15em;">${park.name}</h3>
-        <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${park.address}</p>
-        <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${park.distance < 1000 ? Math.round(park.distance) + ' 公尺' : (park.distance / 1000).toFixed(1) + ' 公里'}</span></p>
-        
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
-            <div>總車位: ${park.total} | <strong>剩餘車位: <span style="color:${park.available > 0 ? '#10b981' : '#ef4444'}; font-size:1.25em;">${park.available}</span></strong></div>
-            <div style="display:flex; gap: 8px;">
-                ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
-                
-                <button onclick="window.open('http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(park.name.replace(/🏢|🚗/g, ''))}')" style="background:${badgeColor}; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.9em;">導航</button>
+    // 渲染卡片 HTML
+    listEl.innerHTML += `
+        <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <h3 style="margin-top:0; font-size:1.15em;">${park.name}</h3>
+            <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${park.address}</p>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
+                <div>總車位: ${park.total} | <strong>剩餘車位: <span style="color:${park.available > 0 ? '#10b981' : '#ef4444'}; font-size:1.25em;">${park.available}</span></strong></div>
+                <div style="display:flex; gap: 8px;">
+                    ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
+                    
+                    <button onclick="window.open('http://maps.google.com/?q=${encodeURIComponent(park.name.replace(/🏢|🚗/g, ''))}')" style="background:${badgeColor}; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.9em;">導航</button>
+                </div>
             </div>
         </div>
-    </div>
-`;
-            });
+    `;
+});
         }
 
     } catch (error) {
