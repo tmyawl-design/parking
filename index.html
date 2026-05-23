@@ -132,7 +132,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
     const trafficApiUrl = `${MY_WORKER_URL}?lon=${targetLon}&lat=${targetLat}&radius=${radiusMeters}`;
 
     try {
-        if (statusEl) statusEl.innerText = `⚡ 正在透過 Worker 掃描「${locationName}」方圓 1 公里的車位...`;
+        if (statusEl) statusEl.innerText = `⚡ 正在透過 Worker 掃描「${locationName}」方圓 3 公里的車位...`;
         
         const response = await fetch(trafficApiUrl);
         if (!response.ok) throw new Error(`Worker 響應異常: ${response.status}`);
@@ -245,7 +245,7 @@ function renderParkingList(spots) {
     listContainer.innerHTML = ""; 
 
     if (!spots || spots.length === 0) {
-        listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">方圓 1 公里內沒有找到對接即時系統的停車場 😢</div>`;
+        listContainer.innerHTML = `<div class="text-center text-gray-500 py-8">方圓 3 公里內沒有找到對接即時系統的停車場 😢</div>`;
         return;
     }
 
