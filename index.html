@@ -289,10 +289,12 @@ function renderParkingList(spots) {
         const cardHtml = `
             <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
-                    <h3 class="font-bold text-gray-800 text-base">${spot.POSITION}</h3>
-                    <p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS}</p>
-                    <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費：${spot.FARE_DESC}</p>
-                    
+                
+                // 🎯 完美修改成這樣（不管是大寫還是小寫，通通抓得到！）：
+                <h3 class="font-bold text-gray-800 text-base"> ${spot.POSITION || spot.position || "未知停車場"} </h3>
+                <p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS || spot.address || "台中市區域"} </p>
+                <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費： ${spot.FARE_DESC || spot.fare_desc || spot.PAY_DESC || "依現場公告為準"} </p>
+                 
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
                         <span class="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-blue-200">ℹ️ 資料來源：台中市即時交通網</span>
