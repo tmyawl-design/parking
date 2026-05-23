@@ -139,27 +139,32 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
         console.log("📦 Worker 轉發回傳資料:", rawData);
 
         if (rawData && Array.isArray(rawData)) {
-            // 🌟 欄位對齊：將交通局特有的欄位，格式化為前端名片卡看懂的欄位
-            const formattedSpots = rawData.map(item => {
-                let availableCount = parseInt(item.AVAILABLE_CAR);
-                if (isNaN(availableCount) || availableCount < 0) {
-                    availableCount = 0;
-                }
+// 🌟 欄位對齊：精確對接台中交通局大寫欄位格式
+const formattedSpots = rawData.map(item => {
+    // 讀取剩餘車位 (欄位叫 AVAILABLE_CAR)
+    let availableCount = parseInt(item.AVAILABLE_CAR);
+    if (isNaN(availableCount) || availableCount < 0) {
+        availableCount = 0;
+    }
 
-                // 計算該車位離搜尋中心點的距離
-                let dist = calculateDistance(targetLat, targetLon, parseFloat(item.Y), parseFloat(item.X));
+    // 讀取經緯度 (緯度是 Y，經度是 X)
+    let spotLat = parseFloat(item.Y || 0);
+    let spotLon = parseFloat(item.X || 0);
+    
+    // 計算該車位離搜尋中心點的距離
+    let dist = calculateDistance(targetLat, targetLon, spotLat, spotLon);
 
-                return {
-                    POSITION: item.PARK_NAME || "未知停車場",
-                    ADDRESS: item.ADDRESS || "台中市",
-                    TOTAL: parseInt(item.TOTAL_CAR) || 50,
-                    AVAILABLE: availableCount,
-                    FARE_DESC: item.PAY_DESC || "依現場公告為準",
-                    LATITUDE: parseFloat(item.Y),  // 交通局的 Y 是緯度
-                    LONGITUDE: parseFloat(item.X), // 交通局的 X 是經度
-                    DISTANCE: dist
-                };
-            });
+    return {
+        POSITION: item.NAME || "未知停車場",            // 修正為大寫 NAME
+        ADDRESS: item.ADDRESS || "台中市",              // 修正為大寫 ADDRESS
+        TOTAL: parseInt(item.TOTAL_CAR) || 50,          // 修正為大寫 TOTAL_CAR
+        AVAILABLE: availableCount,
+        FARE_DESC: item.PAY_DESC || "依現場公告為準",     // 修正為大寫 PAY_DESC
+        LATITUDE: spotLat,
+        LONGITUDE: spotLon,
+        DISTANCE: dist
+    };
+});
 
             // 按距離由近到遠排序
             formattedSpots.sort((a, b) => a.DISTANCE - b.DISTANCE);
