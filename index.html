@@ -125,7 +125,7 @@ function toggleVoiceSearch() {
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
     const statusEl = document.getElementById('status-text');
     
-    // 🎯 從 1000 (1公里) 改成 3000 (3公里) 或 5000 (5公里)，資料量會瞬間暴增！
+    // 🎯 改成 3000 (代表方圓 3 公里內的停車場與路邊車段通通要抓！)
     const radiusMeters = 3000;
     
     // 💡 串接你的 Worker 網址，並把參數帶過去
