@@ -141,22 +141,24 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "") {
         console.log("📦 Worker 轉發回傳資料:", rawData);
 
         if (rawData && Array.isArray(rawData)) {
-// 🌟 前端欄位對齊：百分之百對接 Worker 輸出的黃金標準格式
+// 🌟 前端欄位對齊：大小寫雙重相容版
 const formattedSpots = rawData.map(item => {
-    // 1. 讀取經緯度（優先讀取 Y 和 X）
+    // 1. 讀取經緯度（大小寫防禦）
     let spotLat = parseFloat(item.Y || item.y || item.LATITUDE || 0);
     let spotLon = parseFloat(item.X || item.x || item.LONGITUDE || 0);
     
-    // 2. 計算該車位離搜尋中心點的距離
     let dist = calculateDistance(targetLat, targetLon, spotLat, spotLon);
 
-    // 3. 讀取剩餘車位與總車位
+    // 2. 讀取剩餘與總車位（大小寫防禦，防範 0 筆被丟包）
     let availableCount = parseInt(item.AVAILABLE_CAR || item.available_car || 0);
     let totalCount = parseInt(item.TOTAL_CAR || item.total_car || 50);
 
+    // 3. 讀取名稱（防範空名稱導致整條卡片死機）
+    let spotName = item.PARK_NAME || item.park_name || "未知停車場";
+
     return {
-        POSITION: item.PARK_NAME || item.park_name || "未知停車場",
-        ADDRESS: item.ADDRESS || item.address || "台中市",
+        POSITION: spotName,
+        ADDRESS: item.ADDRESS || item.address || "台中市區域",
         TOTAL: totalCount,
         AVAILABLE: availableCount,
         FARE_DESC: item.PAY_DESC || item.pay_desc || "依現場公告為準",
