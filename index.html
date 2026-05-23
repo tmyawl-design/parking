@@ -174,27 +174,46 @@ const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             const distance = R * c; 
 
-            // 🎯 放大雷達：捕捉 10 公里（10000公尺）內的所有車位！
-            if (distance <= customRadius) {
-                // 統一對應欄位名稱，防止因後台格式變動而抓不到
-                const name = park.name || park.PARK_NAME || "未命名停車場";
-                const address = park.address || park.ADDRESS || "台中市區域";
-                const total = park.total !== undefined ? park.total : (park.TOTAL_CAR || 0);
-                const available = park.available !== undefined ? park.available : (park.AVAILABLE_CAR || 0);
-                const type = park.type || (name.includes("🏢") ? "立體/建物" : "路邊");
-                const fare = park.fare_desc || park.PAY_DESC || "費率依現場公告為準";
+            // 🎯 放大雷達：捕捉 5 公里（5000公尺）內的所有車位！
+if (distance <= customRadius) {
+        const name = park.name || park.PARK_NAME || "未命名停車場";
+        const address = park.address || park.ADDRESS || "台中市區域";
+        const total = park.total !== undefined ? park.total : (park.TOTAL_CAR || 0);
+        const available = park.available !== undefined ? park.available : (park.AVAILABLE_CAR || 0);
+        
+        // 🎯 安全讀取收費文字
+        const fare = park.fare || park.fare_desc || park.PAY_DESC || "費率依現場公告為準";
+        const parkingId = park.id || park.ID || ""; 
 
-                nearbyResults.push({
-                    name: name,
-                    address: address,
-                    total: total,
-                    available: available,
-                    distance: distance,
-                    type: type,
-                    fare: fare
-                });
-            }
-        });
+        // 🎯 治本修正：精確座標「直達導航」網址，點擊直接進入導航畫面，免點兩次！
+        const pLat = parseFloat(park.lat || park.Y);
+        const pLon = parseFloat(park.lon || park.X);
+        const cleanName = name.replace(/🏢|🚗/g, '').trim();
+        const googleNavigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLon}&destination_place_id=${encodeURIComponent(cleanName)}`;
+
+        const isOffstreet = name.includes("🏢");
+        const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+
+        listEl.innerHTML += `
+            <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h3 style="margin-top:0; font-size:1.15em;">${name}</h3>
+                <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${address}</p>
+                <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${fare}</p>
+                <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${distance < 1000 ? Math.round(distance) + ' 公尺' : (distance / 1000).toFixed(1) + ' 公里'}</span></p>
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
+                    <div>總車位: ${total} | <strong>剩餘車位: <span style="color:${available > 0 ? '#10b981' : '#ef4444'}; font-size:1.25em;">${available}</span></strong></div>
+                    <div style="display:flex; gap: 8px;">
+                        
+                        ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
+                        
+                        <button onclick="window.open('${googleNavigationUrl}')" style="background:${badgeColor}; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.9em;">導航</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+});
 
         // 依據距離由近到遠排序
         nearbyResults.sort((a, b) => a.distance - b.distance);
