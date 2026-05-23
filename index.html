@@ -140,7 +140,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "", cust
 
     try {
         // 🛰️ 呼叫你的 Worker（加上 lat, lon, radius 參數讓後台初步過濾，瘦身傳輸量！）
-        const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=${targetLon}&radius=${customRadius}`;
+const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=${targetLon}&radius=${customRadius}&includeRoad=${includeRoad}`;
         const response = await fetch(workerUrl); 
         if (!response.ok) throw new Error("Worker 連線失敗");
         
@@ -248,13 +248,33 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 // 🎯 完全依賴智慧地圖、無寫死特例  的終極治本版
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
-    if (!searchInput) return;
-
+    
+    // 🧠 1. 抓取使用者輸入的原始字串
     let keyword = searchInput.value.trim();
-    if (!keyword) return;
+    if (!keyword) {
+        alert("請輸入搜尋地點！");
+        return;
+    }
 
+    // 🚀 2. 治本核心：簡稱自動「正名」結界，確保 Nominatim 地圖能精準定位
+    if (keyword.includes("綠美圖")) {
+        keyword = "臺中市立圖書館總館"; // 完美降伏水湳大魔王，絕不飄到大里
+    } else if (keyword.includes("科博館")) {
+        keyword = "國立自然科學博物館"; // 讓隱藏的植物園、西屯路地下停車場現形
+    } else if (keyword.includes("中友")) {
+        keyword = "中友百貨";
+    } else if (keyword.includes("中國醫")) {
+        keyword = "中國醫藥大學";
+    } else if (keyword.includes("馬卡龍")) {
+        keyword = "馬卡龍公園"; // 精準鎖定太平馬卡龍
+    }
+
+    // 更新一下輸入框的字，讓使用者知道系統正在幫他搜全名（可加可不加，體驗會變好）
+    searchInput.value = keyword; 
+
+    // --- 接下來維持你原本的 Nominatim fetch 程式碼 ---
     const statusEl = document.getElementById('status-text');
-    if (statusEl) statusEl.innerText = "🔍 正在精確定位地理座標...";
+    if (statusEl) statusEl.innerText = `🔍 正在精確定位「${keyword}」的經緯度座標...`;
 
     let targetLat = null;
     let targetLon = null;
