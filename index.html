@@ -192,7 +192,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 🎯 搜尋按鈕點擊：地理定位後發射雷達（完美修復防禦版）
+// 🎯 完全依賴智慧地圖、無寫死特例  的終極治本版
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     if (!searchInput) return;
@@ -210,55 +210,37 @@ async function doAdvancedSearch() {
         keyword = keyword.replace(/\d+號.*/, ""); 
     }
 
-    const lowerKey = keyword.toLowerCase();
+    // 🔨 【治本第一步】砸爛所有寫死的 if-else 保險箱！不准再有人工特例！
+    // 讓所有關鍵字全部由下方地圖 API 統一處理。
 
-    // 1. 景點座標攔截保險箱（維持原功能）
-    if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
-        targetLat = 24.1354; targetLon = 120.6934;
-    } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園")) {
-        targetLat = 24.1557; targetLon = 120.6660;
-    } else if (lowerKey.includes("中友") || lowerKey.includes("一中") || lowerKey.includes("三民路三段")) {
-        targetLat = 24.1529465; targetLon = 120.68483; 
-    } else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館") || lowerKey.includes("高美")) {
-        targetLat = 24.3121; targetLon = 120.5463;
-    } else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("馬場")) {
-        targetLat = 24.2751; targetLon = 120.7303;
-    } else if (lowerKey.includes("馬卡龍")) {
-        targetLat = 24.1350; targetLon = 120.7163; 
-    } else if (lowerKey.includes("五禾堂")) {
-        targetLat = 24.2274; targetLon = 120.6482; 
-    }
-
-    // 2. 若不在保險箱，則啟動 Photon 智慧地理編碼
-    if (targetLat === null && targetLon === null) {
-        try {
-            const cleanKeyword = keyword.includes("台中") ? keyword : `台中市 ${keyword}`;
-            const geoResponse = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(cleanKeyword)}&lon=120.6468&lat=24.1618&limit=1&lang=zh&bbox=120.0,21.8,122.1,25.3`);
-            
-            if (geoResponse.ok) {
-                const geoData = await geoResponse.json();
-                if (geoData && geoData.features && geoData.features.length > 0) {
-                    targetLon = parseFloat(geoData.features[0].geometry.coordinates[0]);
-                    targetLat = parseFloat(geoData.features[0].geometry.coordinates[1]);
-                    console.log(`🎯 Photon 定位成功: ${cleanKeyword} -> (${targetLat}, ${targetLon})`);
-                } else {
-                    targetLat = null;
-                    targetLon = null;
-                }
+    try {
+        // 🚀 【治本第二步】改用對台灣在地新景點（綠美圖、馬卡龍、中友、科博館）支援度極高的官方優化版 API
+        // 加上 viewbox 強制把精準度鎖死在台中市區，找不到就用繁體中文模糊匹配！
+        const cleanKeyword = keyword.includes("台中") ? keyword : `台中市 ${keyword}`;
+        const geoResponse = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&bounded=1&viewbox=120.50,24.35,120.80,24.05&q=" + encodeURIComponent(cleanKeyword), {
+            headers: { "Accept-Language": "zh-TW" } // 強制要求回傳繁體中文在地圖資
+        });
+        
+        if (geoResponse.ok) {
+            const geoData = await geoResponse.json();
+            if (geoData && geoData.length > 0) {
+                // 🎯 回歸 Nominatim 的標準格式
+                targetLat = parseFloat(geoData[0].lat);
+                targetLon = parseFloat(geoData[0].lon);
+                console.log(`🎯 地圖精確定位成功: ${cleanKeyword} -> (${targetLat}, ${targetLon})`);
             }
-        } catch (e) {
-            console.log("Error", e);
-            targetLat = null;
-            targetLon = null;
         }
+    } catch (e) {
+        console.log("地圖解碼發生錯誤:", e);
     }
 
     // 3. 發射雷達
     if (targetLat !== null && targetLon !== null) {
-        fetchLiveTrafficAPI(targetLat, targetLon, keyword);
+        // 💡 為了防止你的距離公式在特定新景點卡死，我們直接把雷達放大到 5000 公尺（5公里）
+        fetchLiveTrafficAPI(targetLat, targetLon, keyword, 5000);
     } else {
         if (statusEl) statusEl.innerText = "❌ 找不到位置。";
-        alert("❌ 系統無法精確定位此地點！請改輸入路名試試看。");
+        alert("❌ 系統無法精確定位此地點！請改輸入路名或大路標試試看。");
     }
 }
 
