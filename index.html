@@ -201,39 +201,37 @@ async function doAdvancedSearch() {
     if (!keyword) return;
 
     const statusEl = document.getElementById('status-text');
-    if (statusEl) statusEl.innerText = `🔍 正在精確定位「${keyword}」的地理座標...`;
+    if (statusEl) statusEl.innerText = "🔍 正在精確定位地理座標...";
 
-    let targetLat = null, targetLon = null;
+    let targetLat = null;
+    let targetLon = null;
     
-    // 🧠 智慧清洗：如果是精準地址，開源地圖討厭「號」，我們自動切除它以利路段定位
     if (keyword.includes("號")) {
         keyword = keyword.replace(/\d+號.*/, ""); 
     }
 
     const lowerKey = keyword.toLowerCase();
 
-    // 1. 景點座標攔截保險箱（精準校正）
     if (lowerKey.includes("lalaport") || lowerKey.includes("三井")) {
         targetLat = 24.1354; targetLon = 120.6934;
     } else if (lowerKey.includes("科博館") || lowerKey.includes("自然科學") || lowerKey.includes("植物園")) {
         targetLat = 24.1557; targetLon = 120.6660;
     } else if (lowerKey.includes("中友") || lowerKey.includes("一中") || lowerKey.includes("三民路三段")) {
-        targetLat = 24.1529465; targetLon = 120.68483; // 🔴 鎖定中友P正門口座標
+        targetLat = 24.1529465; targetLon = 120.68483; 
     } else if (lowerKey.includes("海洋館") || lowerKey.includes("海生館") || lowerKey.includes("高美")) {
         targetLat = 24.3121; targetLon = 120.5463;
     } else if (lowerKey.includes("后豐") || lowerKey.includes("鐵馬道") || lowerKey.includes("馬場")) {
         targetLat = 24.2751; targetLon = 120.7303;
     } else if (lowerKey.includes("馬卡龍")) {
-        targetLat = 24.1350; targetLon = 120.7163; // 🔴 補上馬卡龍公園的黃金正確座標！
+        targetLat = 24.1350; targetLon = 120.7163; 
     } else if (lowerKey.includes("五禾堂")) {
-        targetLat = 24.2274; targetLon = 120.6482; // 🔴 補上大雅五禾堂的正確座標！
+        targetLat = 24.2274; targetLon = 120.6482; 
     }
 
-    // 2. 若不在特例地標裡，才走 OSM API 查座標
     if (targetLat === null && targetLon === null) {
         try {
-            const queryText = keyword.includes("台中") ? keyword : `台中市 ${keyword}`;
-            const geoResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=1`, {
+            const queryText = keyword.includes("台中") ? keyword : "台中市 " + keyword;
+            const geoResponse = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(queryText), {
                 headers: { "Accept-Control-Allow-Languages": "zh-TW" }
             });
             
@@ -245,18 +243,15 @@ async function doAdvancedSearch() {
                 }
             }
         } catch (e) {
-            console.log("地理解碼網路異常", e);
+            console.log("Error", e);
         }
     }
 
-    // 3. 終極阻斷：防範「指鹿為馬」的預設定位錯誤
     if (targetLat !== null && targetLon !== null) {
-        // 🚀 拿到精準座標，發射雷達呼叫 Worker
         fetchLiveTrafficAPI(targetLat, targetLon, keyword);
     } else {
-        // 🚨 找不到就大聲警告使用者，絕對不偷偷拿五權路敷衍！
-        if (statusEl) statusEl.innerText = `❌ 找不到「${keyword}」的位置。`;
-        alert(`❌ 系統無法在台中地圖上精確定位「${keyword}」！\n\n💡 提示：請改輸入更簡單的路名（例如：三民路三段、雅潭路、環中東路），搜尋成功率會高達 100% 喔！`);
+        if (statusEl) statusEl.innerText = "❌ 找不到位置。";
+        alert("❌ 系統無法精確定位此地點！請改輸入路名試試看。");
     }
 }
 
@@ -290,11 +285,12 @@ function renderParkingList(spots) {
             <div class="bg-white rounded-xl p-4 shadow-sm border ${bgColor} flex justify-between items-center mb-3">
                 <div class="flex-1 pr-2">
                 
-                // 🎯 完美修改成這樣（不管是大寫還是小寫，通通抓得到！）：
-                <h3 class="font-bold text-gray-800 text-base"> ${spot.POSITION || spot.position || "未知停車場"} </h3>
-                <p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS || spot.address || "台中市區域"} </p>
-                <p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費： ${spot.FARE_DESC || spot.fare_desc || spot.PAY_DESC || "依現場公告為準"} </p>
-                 
+// 📄 找到生成卡片的地方，把裡面的註解文字徹底刪掉，只留下純 HTML 語法：
+<h3 class="font-bold text-gray-800 text-base"> ${spot.POSITION || spot.position || "未知停車場"} </h3>
+<p class="text-gray-500 text-xs mt-1">📍 ${spot.ADDRESS || spot.address || "台中市區域"} </p>
+<p class="text-gray-400 text-[11px] mt-1.5 bg-gray-50 p-1.5 rounded-lg">收費： ${spot.FARE_DESC || spot.fare_desc || "依現場公告為準"} </p>
+                  
+                    
                     <div class="flex gap-2 mt-2 items-center flex-wrap">
                         <span class="bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-medium">總車位: ${spot.TOTAL}</span>
                         <span class="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-medium border border-blue-200">ℹ️ 資料來源：台中市即時交通網</span>
