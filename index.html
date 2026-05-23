@@ -228,19 +228,32 @@ async function doAdvancedSearch() {
         targetLat = 24.2274; targetLon = 120.6482; 
     }
 
-    if (targetLat === null && targetLon === null) {
+if (targetLat === null && targetLon === null) {
         try {
-        // 🚀 使用 Photon API，台灣地理邊框＋繁體中文強制鎖定版
-        const geoResponse = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(keyword)}&lon=120.6468&lat=24.1618&limit=1&lang=zh&bbox=120.0,21.8,122.1,25.3`);
-      
+            // 🧠 治本關鍵：強制加上 "台中市 "，讓國際引擎 Photon 能 100% 聽懂「台中市 中友百貨」、「台中市 中央公園」
+            const cleanKeyword = keyword.includes("台中") ? keyword : `台中市 ${keyword}`;
+            
+            const geoResponse = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(cleanKeyword)}&lon=120.6468&lat=24.1618&limit=1&lang=zh&bbox=120.0,21.8,122.1,25.3`);
+            
             if (geoResponse.ok) {
                 const geoData = await geoResponse.json();
+                
                 if (geoData && geoData.features && geoData.features.length > 0) {
-                // 🎯 確保全部統一使用大寫 D 的 geoData
-                targetLon = parseFloat(geoData.features[0].geometry.coordinates[0]);
-                targetLat = parseFloat(geoData.features[0].geometry.coordinates[1]);
+                    targetLon = parseFloat(geoData.features[0].geometry.coordinates[0]);
+                    targetLat = parseFloat(geoData.features[0].geometry.coordinates[1]);
+                    console.log(`🎯 Photon 精確定位成功: ${cleanKeyword} -> (${targetLat}, ${targetLon})`);
+                } else {
+                    // 🛡️ 【核心防禦】如果找不到，立刻清空座標，不准吃上一把留下來的髒資料！
+                    targetLat = null;
+                    targetLon = null;
                 }
             }
+        } catch (e) {
+            console.log("Error", e);
+            targetLat = null;
+            targetLon = null;
+        }
+    }
         } catch (e) {
             console.log("Error", e);
         }
