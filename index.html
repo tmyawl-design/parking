@@ -86,11 +86,13 @@ let userLat = TAICHUNG_CENTER_LAT;
 let userLon = TAICHUNG_CENTER_LON;
 let hasValidUserLocation = false;
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 [系統啟動] 自動發射初始雷達掃描...");
-    getUserLocation();
-    // 初始載入：先拿預設市中心座標去掃描
-    fetchLiveTrafficAPI(userLat, userLon, "市中心周邊");
+// ⚡️ 正確的初始化邏輯：網頁打開時，畫面保持乾淨，靜靜等待使用者輸入或點擊 GPS！
+document.addEventListener('DOMContentLoaded', () => {
+    const statusEl = document.getElementById('status-text');
+    if (statusEl) statusEl.innerText = "💡 請輸入想去的台中景點（如：谷關溫泉、LaLaport），或點擊語音查詢！";
+    
+    // 如果你有做自動抓目前位置，請確保它是「拿到手機 GPS 座標後，才發動第一次 fetchLiveTrafficAPI」！
+    // 絕對不要在拿到 GPS 前，先用市政府座標盲目轟炸 Worker 一次！
 });
 
 // 取得瀏覽器 GPS 定位
@@ -255,72 +257,54 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 // 🎯 完全依賴智慧地圖、無寫死特例  的終極治本版
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
+    const statusEl = document.getElementById('status-text');
     
-    // 🧠 1. 抓取使用者輸入的原始字串
     let keyword = searchInput.value.trim();
     if (!keyword) {
         alert("請輸入搜尋地點！");
         return;
     }
 
-    // 🚀 2. 治本核心：簡稱自動「正名」結界，確保 Nominatim 地圖能精準定位
+    // 🚀 【新景點/簡稱正名防禦結界】
     if (keyword.includes("綠美圖")) {
-        keyword = "臺中市立圖書館總館"; // 完美降伏水湳大魔王，絕不飄到大里
+        keyword = "臺中市立圖書館總館";
     } else if (keyword.includes("科博館")) {
-        keyword = "國立自然科學博物館"; // 讓隱藏的植物園、西屯路地下停車場現形
+        keyword = "國立自然科學博物館";
     } else if (keyword.includes("中友")) {
         keyword = "中友百貨";
-    } else if (keyword.includes("中國醫")) {
-        keyword = "中國醫藥大學";
     } else if (keyword.includes("馬卡龍")) {
-        keyword = "馬卡龍公園"; // 精準鎖定太平馬卡龍
+        keyword = "馬卡龍公園";
+    } else if (keyword.includes("LaLaport") || keyword.includes("lalaport") || keyword.includes("三井")) {
+        keyword = "Mitsui Shopping Park LaLaport 台中"; // 🎯 修正：強制正名，引導定位引擎空降東區 LaLaport！
     }
 
-    // 更新一下輸入框的字，讓使用者知道系統正在幫他搜全名（可加可不加，體驗會變好）
     searchInput.value = keyword; 
-
-    // --- 接下來維持你原本的 Nominatim fetch 程式碼 ---
-    const statusEl = document.getElementById('status-text');
-    if (statusEl) statusEl.innerText = `🔍 正在精確定位「${keyword}」的經緯度座標...`;
-
-    let targetLat = null;
-    let targetLon = null;
-    
-    if (keyword.includes("號")) {
-        keyword = keyword.replace(/\d+號.*/, ""); 
-    }
-
-    // 🔨 【治本第一步】砸爛所有寫死的 if-else 保險箱！不准再有人工特例！
-    // 讓所有關鍵字全部由下方地圖 API 統一處理。
+    if (statusEl) statusEl.innerText = `🔍 正在全球衛星定位「${keyword}」的精確座標...`;
 
     try {
-        // 🚀 【治本第二步】改用對台灣在地新景點（綠美圖、馬卡龍、中友、科博館）支援度極高的官方優化版 API
-        // 加上 viewbox 強制把精準度鎖死在台中市區，找不到就用繁體中文模糊匹配！
-        const cleanKeyword = keyword.includes("台中") ? keyword : `台中市 ${keyword}`;
-        const geoResponse = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&bounded=1&viewbox=120.50,24.35,120.80,24.05&q=" + encodeURIComponent(cleanKeyword), {
-            headers: { "Accept-Language": "zh-TW" } // 強制要求回傳繁體中文在地圖資
-        });
-        
-        if (geoResponse.ok) {
-            const geoData = await geoResponse.json();
-            if (geoData && geoData.length > 0) {
-                // 🎯 回歸 Nominatim 的標準格式
-                targetLat = parseFloat(geoData[0].lat);
-                targetLon = parseFloat(geoData[0].lon);
-                console.log(`🎯 地圖精確定位成功: ${cleanKeyword} -> (${targetLat}, ${targetLon})`);
-            }
-        }
-    } catch (e) {
-        console.log("地圖解碼發生錯誤:", e);
-    }
+        // 向 Nominatim 地圖引擎查詢該景點經緯度 (強制鎖定台中市 Viewbox，並強制繁體中文)
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}&viewbox=120.3,24.4,121.4,24.0&bounded=1&accept-language=zh-TW`);
+        const data = await res.json();
 
-    // 3. 發射雷達
-    if (targetLat !== null && targetLon !== null) {
-        // 💡 為了防止你的距離公式在特定新景點卡死，我們直接把雷達放大到 3000 公尺（3公里）
-        fetchLiveTrafficAPI(targetLat, targetLon, keyword, 3000);
-    } else {
-        if (statusEl) statusEl.innerText = "❌ 找不到位置。";
-        alert("❌ 系統無法精確定位此地點！請改輸入路名或大路標試試看。");
+        if (!data || data.length === 0) {
+            if (statusEl) statusEl.innerText = `❌ 找不到「${keyword}」這個地方，請嘗試輸入更完整的名稱（例如：谷關溫泉飯店）。`;
+            return;
+        }
+
+        // 🎯 成功抓到該景點的精確時空座標！
+        const targetLat = parseFloat(data[0].lat);
+        const targetLon = parseFloat(data[0].lon);
+        const displayName = data[0].display_name.split(',')[0]; // 取出乾淨的景點名稱
+
+        if (statusEl) statusEl.innerText = `🎯 已定位到 ${displayName}！正在即時向雲端抓取周邊車位...`;
+
+        // 🚀 【核心修正治本點】：現在才拿著「新景點的座標」，重新呼叫 Worker 下載周邊 10 公里的車位！
+        // 預設篩選半徑放大到 10000 (10公里)，讓武陵、谷關周邊的車位全部現形！
+        await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 10000);
+
+    } catch (error) {
+        console.error("搜尋定位失敗:", error);
+        if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
 }
 
