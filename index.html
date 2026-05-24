@@ -190,9 +190,9 @@ async function doAdvancedSearch() {
         return;
     }
 
-// 🎯 【強效正名防飄移結界 - 包含 SOGO 錯字防呆】
+// 🎯 【強效正名防飄移結界 - 終極完美相容版】
     var originalKeyword = keyword;
-    var lowerKeyword = keyword.toLowerCase(); // 轉小寫方便偵測不分大小寫的 soga
+    var lowerKeyword = keyword.toLowerCase();
     
     if (keyword === "逢甲") {
         keyword = "逢甲夜市"; 
@@ -200,8 +200,11 @@ async function doAdvancedSearch() {
         keyword = "台中一中街商圈"; 
     } else if (keyword.includes("五禾堂")) {
         keyword = "台中市太平區五禾堂中醫診所"; 
+    } else if (keyword.includes("東勢林場")) {
+        keyword = "東勢林場"; // 強制去掉「遊樂區」等雜詞
+    } else if (keyword.includes("柳川") && (keyword.includes("水岸") || keyword.includes("步道"))) {
+        keyword = "台中市 柳川西路三段"; // 直接定位到水岸步道最核心的精華路段
     } else if (lowerKeyword.includes("soga") || keyword.includes("太平洋百貨")) {
-        // 🎯 抓到錯字或簡稱！如果是豐原的就鎖定豐原，其餘鎖定太平洋SOGO
         if (keyword.includes("豐原")) {
             keyword = "豐原太平洋SOGO百貨";
         } else {
@@ -222,7 +225,6 @@ async function doAdvancedSearch() {
     } else if (keyword.includes("武陵")) {
         keyword = "武陵農場";
     }
-
     // 🗺️ 底層強制限定：如果沒有寫台中或臺中，自動加上「台中市」以鎖定地理區塊，防止噴到大陸的珠台高速！
     var searchUrlName = keyword;
     if (!searchUrlName.includes("台中") && !searchUrlName.includes("臺中") && !searchUrlName.includes("太平")) {
