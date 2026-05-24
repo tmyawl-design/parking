@@ -8,11 +8,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.6; }
-            50% { transform: scale(1.1); opacity: 1; }
+            0%, 100__ { transform: scale(1); opacity: 0.6; }
+            50__ { transform: scale(1.1); opacity: 1; }
         }
         .recording-active {
             animation: pulse 1.5s infinite;
+            background-color: #ef4444 !important; /* 錄音中變成紅色閃爍 */
         }
     </style>
 </head>
@@ -34,7 +35,7 @@
             <div class="flex gap-2">
                 <div class="relative flex-1">
                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
-                    <input type="text" id="search-input" placeholder="打字輸入地名（如：馬卡龍、逢甲）..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                    <input type="text" id="search-input" placeholder="打字輸入地名（如：逢甲夜市、一中街）..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
                 </div>
                 <button onclick="doAdvancedSearch()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm">
                     搜尋
@@ -50,13 +51,20 @@
         </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-            <p id="status-text" class="text-gray-600 font-medium">請輸入想去的台中景點（如：中友百貨、LaLaport）開始搜尋...</p>
+            <p id="status-text" class="text-gray-600 font-medium">請輸入想去的台中景點（如：一中街、LaLaport）或按下方語音開始搜尋...</p>
         </div>
 
         <div class="space-y-3" id="parking-list">
             <div class="text-center text-gray-500 py-8">請在上方輸入地點進行即時車位雷達搜尋 🔍</div>
         </div>
     </main>
+
+    <div class="fixed bottom-6 left-0 right-0 flex flex-col items-center justify-center z-50 pointer-events-none">
+        <span id="mic-tip" class="bg-gray-800 text-white text-xs px-3 py-1 rounded-full shadow-md mb-2 pointer-events-auto font-medium">按我開始語音搜尋</span>
+        <button id="mic-btn" onclick="toggleVoiceSearch()" class="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 focus:outline-none">
+            <i id="mic-icon" class="fa-solid fa-microphone text-2xl"></i>
+        </button>
+    </div>
 
     <footer class="mt-8 mb-6 px-4 text-center text-gray-400 text-[11px] leading-relaxed max-w-md mx-auto border-t border-gray-100 pt-4">
         <p class="font-semibold mb-1">Copyright © 2026 tmyawl-design. All Rights Reserved.</p>
@@ -68,19 +76,85 @@
     </footer>
     
 <script>
-// ========================================================
-// 🛑 全網頁核心 JavaScript - 終極 GPS 定位與搜尋防呆進化版
-// ========================================================
+// 全域變數控制語音辨識
+var recognition = null;
+var isRecording = false;
 
-// 1. 網頁開啟時的初始化監聽器
+// 1. 網頁開啟時的初始化監聽器與語音引擎初始化
 document.addEventListener('DOMContentLoaded', function() {
     var statusEl = document.getElementById('status-text');
     if (statusEl) {
-        statusEl.innerText = "💡 請輸入想去的台中景點（如：逢甲夜市、中友百貨），或輸入「附近的停車場」！";
+        statusEl.innerText = "💡 請輸入想去的台中景點（如：一中街、逢甲夜市）開始搜尋！";
+    }
+
+    // 初始化瀏覽器 Web Speech SpeechRecognition 引擎
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'zh-TW'; // 設定語音辨識為台灣中文
+        recognition.interimResults = false;
+
+        // 語音開始錄製
+        recognition.onstart = function() {
+            isRecording = true;
+            var micBtn = document.getElementById('mic-btn');
+            var micIcon = document.getElementById('mic-icon');
+            var micTip = document.getElementById('mic-tip');
+            if (micBtn) micBtn.classList.add('recording-active');
+            if (micIcon) { micIcon.className = 'fa-solid fa-stop text-2xl'; }
+            if (micTip) micTip.innerText = "🛑 正在聆聽中，請說話...再點一次可停止";
+        };
+
+        // 語音錄製結束
+        recognition.onend = function() {
+            isRecording = false;
+            var micBtn = document.getElementById('mic-btn');
+            var micIcon = document.getElementById('mic-icon');
+            var micTip = document.getElementById('mic-tip');
+            if (micBtn) micBtn.classList.remove('recording-active');
+            if (micIcon) { micIcon.className = 'fa-solid fa-microphone text-2xl'; }
+            if (micTip) micTip.innerText = "按我開始語音搜尋";
+        };
+
+        // 成功辨識到語音結果
+        recognition.onresult = function(event) {
+            var resultText = event.results[0][0].transcript;
+            // 去除末尾標點符號
+            resultText = resultText.replace(/[.。?？!！]/g, "");
+            
+            var searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.value = resultText;
+                // 🚀 語音辨識成功後，自動觸發高階搜尋
+                doAdvancedSearch();
+            }
+        };
+
+        recognition.onerror = function(event) {
+            console.error("語音辨識錯誤:", event.error);
+            var micTip = document.getElementById('mic-tip');
+            if (micTip) micTip.innerText = "❌ 語音辨識失敗，請再試一次";
+        };
+    } else {
+        var micTip = document.getElementById('mic-tip');
+        if (micTip) micTip.innerText = "❌ 您的瀏覽器不支援語音辨識";
+        var micBtn = document.getElementById('mic-btn');
+        if (micBtn) micBtn.style.display = 'none'; // 不支援則隱藏按鈕
     }
 });
 
-// 2. 核心搜尋與地標正名引擎（內建：自動補字、二次搜尋、GPS 攔截機制）
+// 🎙️ 切換語音錄音狀態的開關函數
+function toggleVoiceSearch() {
+    if (!recognition) return;
+    if (isRecording) {
+        recognition.stop();
+    } else {
+        recognition.start();
+    }
+}
+
+// 2. 核心搜尋與地標正名引擎（強力阻斷珠台高速與海外偏離）
 async function doAdvancedSearch() {
     var searchInput = document.getElementById('search-input');
     var statusEl = document.getElementById('status-text');
@@ -91,7 +165,7 @@ async function doAdvancedSearch() {
         return;
     }
 
-    // 🎯 功能 A：攔截關鍵字，發動 GPS 手機精確定位
+    // 🎯 攔截 GPS 定位關鍵字
     if (keyword === "附近的停車場" || keyword === "附近" || keyword === "目前位置" || keyword === "我的位置") {
         if (statusEl) statusEl.innerText = "📍 正在要求手機/瀏覽器 GPS 定位權限，請點擊允許...";
         
@@ -101,26 +175,30 @@ async function doAdvancedSearch() {
                     var myLat = position.coords.latitude;
                     var myLon = position.coords.longitude;
                     if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 5 公里內的即時車位...";
-                    // 直接用 GPS 座標發動雷達
                     await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 5000);
                 },
                 function(error) {
                     console.error("GPS 定位失敗:", error);
-                    if (statusEl) statusEl.innerText = "❌ 定位失敗！請確認手機是否開啟 GPS，或手動打字搜尋（例如：逢甲夜市）。";
-                    alert("無法取得您的 GPS 位置，請確認授權或手動輸入地點。");
+                    if (statusEl) statusEl.innerText = "❌ 定位失敗！請確認手機是否開啟 GPS，或手動打字搜尋。";
+                    alert("無法取得您的 GPS 位置，請手動輸入地點。");
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
             );
         } else {
             if (statusEl) statusEl.innerText = "❌ 您的瀏覽器不支援內建 GPS 定位功能。";
         }
-        return; // 攔截成功，直接收工，不走下方的地圖搜尋
+        return;
     }
 
-    // 🎯 功能 B：超級正名結界與自動補字安全網
+    // 🎯 【強效正名防飄移結界】
     var originalKeyword = keyword;
+    
     if (keyword === "逢甲") {
         keyword = "逢甲夜市"; 
+    } else if (keyword === "一中" || keyword === "一中街" || keyword === "一中商圈") {
+        keyword = "台中一中街商圈"; 
+    } else if (keyword.includes("五禾堂")) {
+        keyword = "台中市太平區五禾堂中醫診所"; 
     } else if (keyword.includes("綠美圖")) {
         keyword = "臺中綠美圖"; 
     } else if (keyword.includes("科博館")) {
@@ -135,25 +213,24 @@ async function doAdvancedSearch() {
         keyword = "武陵農場";
     }
 
-    // 如果使用者沒有輸入「台中」或「臺中」，自動幫他加上去，防止地圖飛到菲律賓或海外
+    // 🗺️ 底層強制限定：如果沒有寫台中或臺中，自動加上「台中市」以鎖定地理區塊，防止噴到大陸的珠台高速！
     var searchUrlName = keyword;
-    if (!searchUrlName.includes("台中") && !searchUrlName.includes("臺中")) {
-        searchUrlName = "台中 " + searchUrlName;
+    if (!searchUrlName.includes("台中") && !searchUrlName.includes("臺中") && !searchUrlName.includes("太平")) {
+        searchUrlName = "台中市 " + searchUrlName;
     }
 
-    if (searchInput) searchInput.value = keyword; 
+    if (searchInput) searchInput.value = originalKeyword; // 保持輸入框乾淨
     if (statusEl) statusEl.innerText = "🔍 正在精確定位「" + keyword + "」的經緯度座標...";
 
     try {
-        // 🛰️ 【第一次嘗試】呼叫地圖定位引擎
+        // 【第一次精確搜尋】
         var res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(searchUrlName) + "&accept-language=zh-TW&limit=1");
         var data = await res.json();
 
-        // 🎯 功能 C：二次搜尋備用機制（拯救五禾堂中醫診所等小景點）
+        // 【第二次模糊退路：特別針對像五禾堂中醫診所這樣的小地標】
         if (!data || data.length === 0) {
-            if (statusEl) statusEl.innerText = "🔄 擴大搜尋中，正在嚐試模糊搜尋「" + keyword + "」...";
-            // 去除所有細節，只搜尋名字本體加上台中
-            res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent("台中 " + originalKeyword) + "&accept-language=zh-TW&limit=1");
+            if (statusEl) statusEl.innerText = "🔄 正在擴大深度搜尋「台中 " + originalKeyword + "」的街道位置...";
+            res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent("台中市 " + originalKeyword) + "&accept-language=zh-TW&limit=1");
             data = await res.json();
         }
 
@@ -162,15 +239,12 @@ async function doAdvancedSearch() {
             var targetLon = parseFloat(data[0].lon);
             var displayName = data[0].display_name.split(',')[0]; 
 
-            // 防止 display_name 抓到沒意義的英文或路名
-            if (displayName.length > 20) { displayName = keyword; }
-
+            if (displayName.length > 20) { displayName = originalKeyword; }
             if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
 
-            // 啟動雷達：預設搜尋 5 公里
             await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 5000);
         } else {
-            if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + keyword + "」的位置，請嘗試手動輸入附近的道路名稱或大標地。";
+            if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + originalKeyword + "」的位置，請嘗試改輸入周邊的道路名稱（如：三民路三段）。";
         }
     } catch (error) {
         console.error("搜尋定位失敗:", error);
@@ -178,7 +252,7 @@ async function doAdvancedSearch() {
     }
 }
 
-// 3. 即時車位大數據撈取與渲染雷達（排序與欄位完美終結版）
+// 3. 即時車位大數據撈取與渲染雷達（完美排序版）
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
     if (!customRadius) customRadius = 5000;
     var statusEl = document.getElementById('status-text');
