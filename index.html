@@ -148,77 +148,75 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "", cust
         if (listEl) {
             listEl.innerHTML = ""; // 清空舊畫面
             
-            if (!Array.isArray(allTaichungParkings) || allTaichungParkings.length === 0) {
-                if (statusEl) statusEl.innerText = `❌ 「${locationName}」方圓 5 公里內查無立體停車場。`;
-                return;
-            }
+// 🚀 請完美替換前端 index.html 內部的 forEach 區塊：
+if (Array.isArray(allTaichungParkings) && allTaichungParkings.length > 0) {
+    allTaichungParkings.forEach(park => {
+        try {
+            // 1. 經緯度相容抓取
+            const pLat = parseFloat(park.Y || park.lat);
+            const pLon = parseFloat(park.X || park.lon);
 
-            let showCount = 0;
-
-            allTaichungParkings.forEach(park => {
-                try {
-                    // 1. 經緯度相容抓取
-                    const pLat = parseFloat(park.Y || park.lat);
-                    const pLon = parseFloat(park.X || park.lon);
-                    if (!pLat || !pLon) return;
-
-                    // 2. 哈維辛精確公式
-                    const R = 6371000; 
-                    const phi1 = targetLat * Math.PI / 180;
-                    const phi2 = pLat * Math.PI / 180;
-                    const deltaPhi = (pLat - targetLat) * Math.PI / 180;
-                    const deltaLambda = (pLon - targetLon) * Math.PI / 180;
-
-                    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-                              Math.cos(phi1) * Math.cos(phi2) *
-                              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                    const distance = R * c; 
-
-                    // 3. 🎯 核心治本：前台卡片只留 5 公里內的精華車位
-                    if (distance <= 5000) {
-                        showCount++;
-                        
-                        const name = park.PARK_NAME || park.name || "未命名停車場";
-                        const address = park.ADDRESS || park.address || "台中市區域";
-                        const total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
-                        const available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available || 0);
-                        const fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
-                        
-                        // 💰 官方 ID 抓取
-                        const parkingId = park.id || park.ID || park.parking_id || ""; 
-
-// 🎯 1. 徹底修正導航網址拼裝（注意引號與 $ 符號的完美對齊）
-const googleNavigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLon}`;
-
-const isOffstreet = name.includes("🏢");
-const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
-
-// 🎯 2. 渲染卡片 HTML（注意最底部的導航按鈕 onclick 內部的引號）
-listEl.innerHTML += `
-    <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">
-        <h3 style="margin-top:0; font-size:1.15em;">${name}</h3>
-        <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${address}</p>
-        <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${fare}</p>
-        <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${distance < 1000 ? Math.round(distance) + ' 公尺' : (distance / 1000).toFixed(1) + ' 公里'}</span></p>
-        
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
-            <div style="font-size: 0.9em; color:#1f2937;">總車位: ${total} | <strong>剩餘: <span style="color:${available > 0 ? '#10b981' : '#ef4444'}; font-size:1.2em;">${available}</span></strong></div>
-            <div style="display:flex; gap: 6px;">
+            // 🎯 核心修正：不用 return！改用 if (pLat && pLon) 把所有邏輯包起來，保證不報語法錯誤！
+            if (pLat && pLon) {
                 
-                ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
-                
-                <button onclick="window.open('${googleNavigationUrl}')" style="background:${badgeColor}; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em;">導航</button>
-            </div>
-        </div>
-    </div>
-`;
-                    }
-                } catch (innerErr) {
-                    console.error("單筆渲染出錯跳過:", innerErr);
+                // 2. 哈維辛精確公式 (計算你與停車場的距離)
+                const R = 6371000; 
+                const phi1 = targetLat * Math.PI / 180;
+                const phi2 = pLat * Math.PI / 180;
+                const deltaPhi = (pLat - targetLat) * Math.PI / 180;
+                const deltaLambda = (pLon - targetLon) * Math.PI / 180;
+
+                const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                          Math.cos(phi1) * Math.cos(phi2) *
+                          Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const distance = R * c; 
+
+                // 3. 雷達過濾：前台只留 5 公里內的精華車位
+                if (distance <= 5000) {
+                    showCount++;
+                    
+                    const name = park.PARK_NAME || park.name || "未命名停車場";
+                    const address = park.ADDRESS || park.address || "台中市區域";
+                    const total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
+                    const available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available || 0);
+                    const fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
+                    
+                    // 💰 官方唯一識別 ID
+                    const parkingId = park.id || park.ID || park.parking_id || ""; 
+
+                    // 🚀 核心修正：利用樣板字串（Template Literals）完美拼出 Google Maps 直達導航網址（注意這裡要用 $ 號！）
+                    const googleNavigationUrl = `http://googleusercontent.com/maps.google.com/maps?daddr=${pLat},${pLon}`;
+
+                    const isOffstreet = name.includes("🏢");
+                    const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+
+                    // 渲染卡片 HTML
+                    listEl.innerHTML += `
+                        <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">
+                            <h3 style="margin-top:0; font-size:1.15em;">${name}</h3>
+                            <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${address}</p>
+                            <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${fare}</p>
+                            <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${distance < 1000 ? Math.round(distance) + ' 公尺' : (distance / 1000).toFixed(1) + ' 公里'}</span></p>
+                            
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
+                                <div style="font-size: 0.9em; color:#1f2937;">總車位: ${total} | <strong>剩餘: <span style="color:${available > 0 ? '#10b981' : '#ef4444'}; font-size:1.2em;">${available}</span></strong></div>
+                                <div style="display:flex; gap: 6px;">
+                                    
+                                    ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
+                                    
+                                    <button onclick="window.open('${googleNavigationUrl}')" style="background:${badgeColor}; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em;">導航</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 }
-            });
-
+            }
+        } catch (innerErr) {
+            console.error("單筆渲染出錯跳過:", innerErr);
+        }
+    });
+}
             if (statusEl) {
                 if (showCount > 0) {
                     statusEl.innerText = `🟢 成功！雷達已搜出「${locationName}」周邊 5 公里內 ${showCount} 個即時車位！`;
