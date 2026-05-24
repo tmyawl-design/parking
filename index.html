@@ -290,19 +290,21 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 🎯 完全依賴智慧地圖、無寫死特例  的終極治本版
+// ==========================================
+// 🚀 核心優化：整合除雷版（雙函數完美對齊）
+// ==========================================
+
 async function doAdvancedSearch() {
     const searchInput = document.getElementById('search-input');
     const statusEl = document.getElementById('status-text');
     
-    let keyword = searchInput.value.trim();
+    let keyword = searchInput.value ? searchInput.value.trim() : "";
     if (!keyword) {
         alert("請輸入搜尋地點！");
-        return;
+        return; // 這裡在 function 內，是合法的
     }
 
-    // 🚀 【景點簡稱正名結界 - 終極相容版】
-    // 使用地圖引擎絕對認得的精確地標名稱，避免它迷路
+    // 🎯 簡稱正名結界
     if (keyword.includes("綠美圖")) {
         keyword = "臺中綠美圖"; 
     } else if (keyword.includes("科博館")) {
@@ -312,37 +314,127 @@ async function doAdvancedSearch() {
     } else if (keyword.includes("馬卡龍")) {
         keyword = "馬卡龍公園";
     } else if (keyword.includes("LaLaport") || keyword.includes("lalaport") || keyword.includes("三井")) {
-        keyword = "LaLaport 台中"; // 🎯 修正：改成最簡單、圖資一定有的地名！
+        keyword = "LaLaport 台中";
     } else if (keyword.includes("武陵")) {
         keyword = "武陵農場";
     }
 
-    searchInput.value = keyword; 
+    if (searchInput) searchInput.value = keyword; 
     if (statusEl) statusEl.innerText = `🔍 正在精確定位「${keyword}」的經緯度座標...`;
 
     try {
-        // 🛰️ 呼叫地圖引擎（移除嚴格的 viewbox 限制，改用更寬容的接近鎖定，防止武陵、谷關被 bounded 濾掉！）
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}&accept-language=zh-TW&limit=1`);
         const data = await res.json();
 
-        if (!data || data.length === 0) {
-            if (statusEl) statusEl.innerText = `❌ 地圖找不到「${keyword}」的位置，請嘗試換個字搜尋（例如：台中車站）。`;
-            return;
+        if (data && data.length > 0) {
+            const targetLat = parseFloat(data[0].lat);
+            const targetLon = parseFloat(data[0].lon);
+            const displayName = data[0].display_name.split(',')[0]; 
+
+            if (statusEl) statusEl.innerText = `🎯 已成功定位到「${displayName}」，正在抓取周邊車位...`;
+
+            // 呼叫下方雷達函數，傳入精確座標與預設 5000 公尺 (5公里)
+            await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 5000);
+        } else {
+            if (statusEl) statusEl.innerText = `❌ 地圖找不到「${keyword}」的位置，請嘗試換個字搜尋。`;
         }
-
-        // 🎯 成功抓到該景點的精確座標
-        const targetLat = parseFloat(data[0].lat);
-        const targetLon = parseFloat(data[0].lon);
-        const displayName = data[0].display_name.split(',')[0]; 
-
-        if (statusEl) statusEl.innerText = `🎯 已成功定位到「${displayName}」，正在抓取周邊車位...`;
-
-        // 🧠 智慧雷達：前台預設搜尋半徑給 5000 (5公里)，這樣中友、馬卡龍絕對手到擒來！
-        await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 5000);
-
     } catch (error) {
         console.error("搜尋定位失敗:", error);
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
+    }
+}
+
+async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "", customRadius = 5000) {
+    const statusEl = document.getElementById('status-text');
+    const listEl = document.getElementById('parking-list');
+    const showRoadCheckbox = document.getElementById('show-road-parking');
+    
+    const includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
+
+    try {
+        // 🛰️ 呼叫你的 Cloudflare Worker 後台
+        const workerUrl = `https://tdx-proxy.tmya-w-l.workers.dev/?lat=${targetLat}&lon=${targetLon}&radius=${customRadius}&includeRoad=${includeRoad}`;
+        const response = await fetch(workerUrl); 
+        if (!response.ok) throw new Error("Worker 連線失敗");
+        
+        const allTaichungParkings = await response.json();
+
+        if (listEl) {
+            listEl.innerHTML = ""; // 先清空畫面
+            
+            if (Array.isArray(allTaichungParkings) && allTaichungParkings.length > 0) {
+                let showCount = 0;
+
+                allTaichungParkings.forEach(park => {
+                    // 🎯 核心除雷：完全不用任何 return 關鍵字！用標準 if 結構過濾！
+                    const pLat = parseFloat(park.Y || park.lat);
+                    const pLon = parseFloat(park.X || park.lon);
+
+                    if (pLat && pLon) {
+                        // 📏 哈維辛距離計算
+                        const R = 6371000; 
+                        const phi1 = targetLat * Math.PI / 180;
+                        const phi2 = pLat * Math.PI / 180;
+                        const deltaPhi = (pLat - targetLat) * Math.PI / 180;
+                        const deltaLambda = (pLon - targetLon) * Math.PI / 180;
+
+                        const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                                  Math.cos(phi1) * Math.cos(phi2) *
+                                  Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        const distance = R * c; 
+
+                        // 🔍 篩選 5 公里內的精華停車場
+                        if (distance <= 5000) {
+                            showCount++;
+                            
+                            const name = park.PARK_NAME || park.name || "未命名停車場";
+                            const address = park.ADDRESS || park.address || "台中市區域";
+                            const total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
+                            const available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available || 0);
+                            const fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
+                            const parkingId = park.id || park.ID || park.parking_id || ""; 
+
+                            // 🗺️ 標準 Google 導航網址（樣板字串格式）
+                            const googleNavigationUrl = `http://googleusercontent.com/maps.google.com/maps?daddr=${pLat},${pLon}`;
+
+                            const isOffstreet = name.includes("🏢");
+                            const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+
+                            listEl.innerHTML += `
+                                <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">
+                                    <h3 style="margin-top:0; font-size:1.15em;">${name}</h3>
+                                    <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${address}</p>
+                                    <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${fare}</p>
+                                    <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${distance < 1000 ? Math.round(distance) + ' 公尺' : (distance / 1000).toFixed(1) + ' 公里'}</span></p>
+                                    
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
+                                        <div style="font-size: 0.9em; color:#1f2937;">總車位: ${total} | <strong>剩餘: <span style="color:${available > 0 ? '#10b981' : '#ef4444'}; font-size:1.2em;">${available}</span></strong></div>
+                                        <div style="display:flex; gap: 6px;">
+                                            ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
+                                            <button onclick="window.open('${googleNavigationUrl}')" style="background:${badgeColor}; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em;">導航</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+
+                if (statusEl) {
+                    if (showCount > 0) {
+                        statusEl.innerText = `🟢 成功！已搜出「${locationName}」周邊 5 公里內 ${showCount} 個即時車位！`;
+                    } else {
+                        statusEl.innerText = `❌ 「${locationName}」方圓 5 公里內查無立體停車場。`;
+                    }
+                }
+            } else {
+                if (statusEl) statusEl.innerText = `❌ 「${locationName}」方圓 5 公里內查無立體停車場。`;
+            }
+        }
+    } catch (error) {
+        console.error("雷達撈取失敗:", error);
+        if (statusEl) statusEl.innerText = "❌ 無法取得即時車位資料，請檢查雲端通道連線。";
     }
 }
 
