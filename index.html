@@ -188,31 +188,31 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName = "", cust
                         // 💰 官方 ID 抓取
                         const parkingId = park.id || park.ID || park.parking_id || ""; 
 
-                        // 🚀 核心修正：用最最最安全的傳統相加法拼出 Google Maps 一鍵直達導航網址，絕對不閃退、不報錯！
-                        const googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon;
+// 🎯 1. 徹底修正導航網址拼裝（注意引號與 $ 符號的完美對齊）
+const googleNavigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLon}`;
 
-                        const isOffstreet = name.includes("🏢");
-                        const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+const isOffstreet = name.includes("🏢");
+const badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
 
-                        // 渲染卡片 HTML
-                        listEl.innerHTML += `
-                            <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">
-                                <h3 style="margin-top:0; font-size:1.15em;">${name}</h3>
-                                <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${address}</p>
-                                <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${fare}</p>
-                                <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${distance < 1000 ? Math.round(distance) + ' 公尺' : (distance / 1000).toFixed(1) + ' 公里'}</span></p>
-                                
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
-                                    <div style="font-size: 0.9em; color:#1f2937;">總車位: ${total} | <strong>剩餘: <span style="color:${available > 0 ? '#10b981' : '#ef4444'}; font-size:1.2em;">${available}</span></strong></div>
-                                    <div style="display:flex; gap: 6px;">
-                                        
-                                        ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
-                                        
-                                        <button onclick="window.open('${googleNavigationUrl}')" style="background:${badgeColor}; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em;">導航</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+// 🎯 2. 渲染卡片 HTML（注意最底部的導航按鈕 onclick 內部的引號）
+listEl.innerHTML += `
+    <div class="parking-card" style="border-left: 5px solid ${badgeColor}; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">
+        <h3 style="margin-top:0; font-size:1.15em;">${name}</h3>
+        <p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ${address}</p>
+        <p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ${fare}</p>
+        <p style="margin: 5px 0;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">${distance < 1000 ? Math.round(distance) + ' 公尺' : (distance / 1000).toFixed(1) + ' 公里'}</span></p>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">
+            <div style="font-size: 0.9em; color:#1f2937;">總車位: ${total} | <strong>剩餘: <span style="color:${available > 0 ? '#10b981' : '#ef4444'}; font-size:1.2em;">${available}</span></strong></div>
+            <div style="display:flex; gap: 6px;">
+                
+                ${parkingId ? `<button onclick="window.open('https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=${parkingId}')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>` : ''}
+                
+                <button onclick="window.open('${googleNavigationUrl}')" style="background:${badgeColor}; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em;">導航</button>
+            </div>
+        </div>
+    </div>
+`;
                     }
                 } catch (innerErr) {
                     console.error("單筆渲染出錯跳過:", innerErr);
