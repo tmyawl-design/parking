@@ -264,7 +264,7 @@ async function doAdvancedSearch() {
     }
 }
 
-// 3. 即時車位大數據撈取與渲染雷達（完美排序版）
+// 3. 即時車位大數據撈取與渲染雷達（前台完美對接相容版）
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
     if (!customRadius) customRadius = 5000;
     var statusEl = document.getElementById('status-text');
@@ -278,60 +278,88 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
         var response = await fetch(workerUrl); 
         if (!response.ok) throw new Error("Worker 連線失敗");
         
-        var allTaichungParkings = await response.json();
+        var jsonResult = await response.json();
+
+        // 🧠 【智慧解包防護罩】：不管後台給的是 { ParkingAvailabilities: [...] } 還是單純 [...] 陣列，通通都能安全解出！
+        var rawList = [];
+        if (Array.isArray(jsonResult)) {
+            rawList = jsonResult;
+        } else if (jsonResult && Array.isArray(jsonResult.ParkingAvailabilities)) {
+            rawList = jsonResult.ParkingAvailabilities;
+        } else if (jsonResult && Array.isArray(jsonResult.data)) {
+            rawList = jsonResult.data;
+        }
 
         if (listEl) {
             listEl.innerHTML = ""; 
             
-            if (Array.isArray(allTaichungParkings) && allTaichungParkings.length > 0) {
+            if (rawList && rawList.length > 0) {
                 var validSpots = []; 
 
-                allTaichungParkings.forEach(function(park) {
-                    var pLat = parseFloat(park.Y || park.lat || park.LATITUDE || park.latitude || park.py);
-                    var pLon = parseFloat(park.X || park.lon || park.LONGITUDE || park.longitude || park.px);
+                rawList.forEach(function(park) {
+                    // 優先採用後台已經算好的精準距離，如果沒有才用前台哈維辛公式保底
+                    var distance = park.distance;
 
-                    if (pLat && pLon) {
-                        var R = 6371000; 
-                        var phi1 = targetLat * Math.PI / 180;
-                        var phi2 = pLat * Math.PI / 180;
-                        var deltaPhi = (pLat - targetLat) * Math.PI / 180;
-                        var deltaLambda = (pLon - targetLon) * Math.PI / 180;
+                    if (distance === undefined || distance === null) {
+                        var pLat = parseFloat(park.Y || park.lat || park.LATITUDE || park.Latitude || 0);
+                        var pLon = parseFloat(park.X || park.lon || park.LONGITUDE || park.Longitude || 0);
 
-                        var a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-                                Math.cos(phi1) * Math.cos(phi2) *
-                                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-                        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                        var distance = R * c; 
+                        if (pLat && pLon) {
+                            var R = 6371000; 
+                            var phi1 = targetLat * Math.PI / 180;
+                            var phi2 = pLat * Math.PI / 180;
+                            var deltaPhi = (pLat - targetLat) * Math.PI / 180;
+                            var deltaLambda = (pLon - targetLon) * Math.PI / 180;
 
-                        if (distance <= customRadius) {
-                            var name = park.PARK_NAME || park.name || park.POSITION || park.position || "未命名停車場";
-                            var address = park.ADDRESS || park.address || "台中市區域";
-                            var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || park.TOTAL || 0);
-                            var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : (park.AVAILABLE || 0));
-                            var fare = park.PAY_DESC || park.fare_desc || park.FARE_DESC || "費率依現場公告";
-                            var parkingId = park.id || park.ID || park.parking_id || ""; 
-
-                            var googleNavigationUrl = "http://googleusercontent.com/maps.google.com/maps?daddr=" + pLat + "," + pLon;
-
-                            var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
-                            var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
-
-                            validSpots.push({
-                                name: name,
-                                address: address,
-                                total: total,
-                                available: available,
-                                fare: fare,
-                                parkingId: parkingId,
-                                distance: distance,
-                                googleNavigationUrl: googleNavigationUrl,
-                                badgeColor: badgeColor
-                            });
+                            var a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                                    Math.cos(phi1) * Math.cos(phi2) *
+                                    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                            distance = R * c; 
+                        } else {
+                            return; // 沒座標就跳過
                         }
+                    }
+
+                    // 過濾半徑
+                    if (distance <= customRadius) {
+                        var name = park.PARK_NAME || park.name || park.POSITION || "未命名停車場";
+                        var address = park.ADDRESS || park.address || park.CarParkAddress || "台中市區域";
+                        var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || park.TOTAL || 0);
+                        var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : 0);
+                        var fare = park.fare_desc || park.FARE_DESC || park.PAY_DESC || "費率依現場公告";
+                        var parkingId = park.id || park.ID || park.CarParkID || ""; 
+                        
+                        var pLatFinal = parseFloat(park.Y || park.lat || 24.1528);
+                        var pLonFinal = parseFloat(park.X || park.lon || 120.6853);
+                        var googleNavigationUrl = "http://maps.google.com/maps?daddr=" + pLatFinal + "," + pLonFinal;
+
+                        var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
+                        var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+
+                        // 🚦 讀取後台傳來的原始燈號，如果是黑燈 B，將可用車位字串顯示改為「現場公告」
+                        var availableDisplay = available;
+                        if (park.AvailableCarRGB === "B") {
+                            availableDisplay = '<span style="color:#6b7280; font-size:0.85em; font-weight:normal;">現場公告</span>';
+                        } else {
+                            availableDisplay = '<span style="color:' + (available > 0 ? '#10b981' : '#ef4444') + '; font-size:1.2em;">' + available + '</span>';
+                        }
+
+                        validSpots.push({
+                            name: name,
+                            address: address,
+                            total: total,
+                            availableDisplay: availableDisplay,
+                            fare: fare,
+                            parkingId: parkingId,
+                            distance: distance,
+                            googleNavigationUrl: googleNavigationUrl,
+                            badgeColor: badgeColor
+                        });
                     }
                 });
 
-                // 由近到遠精密排序
+                // 由近到遠排序
                 validSpots.sort(function(a, b) {
                     return a.distance - b.distance;
                 });
@@ -344,7 +372,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                         '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
                         '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
                         '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
-                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>剩餘: <span style="color:' + (spot.available > 0 ? '#10b981' : '#ef4444') + '; font-size:1.2em;">' + spot.available + '</span></strong></div>' +
+                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>剩餘: ' + spot.availableDisplay + '</strong></div>' +
                             '<div style="display:flex; gap: 6px;">';
                     
                     if (spot.parkingId) {
