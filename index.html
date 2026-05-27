@@ -263,8 +263,7 @@ async function doAdvancedSearch() {
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
 }
-
-// 3. 即時車位大數據撈取與渲染雷達（前台完美對接相容版）
+// 3. 即時車位大數據撈取與渲染雷達（終極距離對接版）
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
     if (!customRadius) customRadius = 5000;
     var statusEl = document.getElementById('status-text');
@@ -274,13 +273,14 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
     var includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
 
     try {
+        // 確保參數安全送出
         var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
         var response = await fetch(workerUrl); 
         if (!response.ok) throw new Error("Worker 連線失敗");
         
         var jsonResult = await response.json();
 
-        // 🧠 【智慧解包防護罩】：不管後台給的是 { ParkingAvailabilities: [...] } 還是單純 [...] 陣列，通通都能安全解出！
+        // 智慧解包：相容各種後台回傳結構
         var rawList = [];
         if (Array.isArray(jsonResult)) {
             rawList = jsonResult;
@@ -297,74 +297,51 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                 var validSpots = []; 
 
                 rawList.forEach(function(park) {
-                    // 優先採用後台已經算好的精準距離，如果沒有才用前台哈維辛公式保底
-                    var distance = park.distance;
+                    // 🎯 直接拿後台算好的 distance！如果後台沒算，前台才用預設值 100 頂替，絕不給它 NaN 的機會
+                    var distance = park.distance !== undefined && park.distance !== null ? parseFloat(park.distance) : 0;
+                    
+                    // 如果後台回傳的資料超出了半徑，就跳過它
+                    if (distance > customRadius) return;
 
-                    if (distance === undefined || distance === null) {
-                        var pLat = parseFloat(park.Y || park.lat || park.LATITUDE || park.Latitude || 0);
-                        var pLon = parseFloat(park.X || park.lon || park.LONGITUDE || park.Longitude || 0);
+                    var name = park.PARK_NAME || park.name || park.POSITION || "未命名停車場";
+                    var address = park.ADDRESS || park.address || "台中市區域";
+                    var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
+                    var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : 0);
+                    var fare = park.fare_desc || park.FARE_DESC || park.PAY_DESC || "費率依現場公告";
+                    var parkingId = park.id || park.ID || ""; 
+                    
+                    var pLatFinal = parseFloat(park.Y || park.lat || targetLat);
+                    var pLonFinal = parseFloat(park.X || park.lon || targetLon);
+                    var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLatFinal + "," + pLonFinal;
 
-                        if (pLat && pLon) {
-                            var R = 6371000; 
-                            var phi1 = targetLat * Math.PI / 180;
-                            var phi2 = pLat * Math.PI / 180;
-                            var deltaPhi = (pLat - targetLat) * Math.PI / 180;
-                            var deltaLambda = (pLon - targetLon) * Math.PI / 180;
+                    var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
+                    var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
 
-                            var a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-                                    Math.cos(phi1) * Math.cos(phi2) *
-                                    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-                            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                            distance = R * c; 
-                        } else {
-                            return; // 沒座標就跳過
-                        }
+                    // 🚦 即時燈號異常判定 (黑燈 B 處理)
+                    var availableDisplay = available;
+                    if (park.AvailableCarRGB === "B") {
+                        availableDisplay = '<span style="color:#6b7280; font-size:0.85em; font-weight:normal;">現場公告</span>';
+                    } else {
+                        availableDisplay = '<span style="color:' + (available > 0 ? '#10b981' : '#ef4444') + '; font-size:1.2em;">' + available + '</span>';
                     }
 
-                    // 過濾半徑
-                    if (distance <= customRadius) {
-                        var name = park.PARK_NAME || park.name || park.POSITION || "未命名停車場";
-                        var address = park.ADDRESS || park.address || park.CarParkAddress || "台中市區域";
-                        var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || park.TOTAL || 0);
-                        var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : 0);
-                        var fare = park.fare_desc || park.FARE_DESC || park.PAY_DESC || "費率依現場公告";
-                        var parkingId = park.id || park.ID || park.CarParkID || ""; 
-                        
-                        var pLatFinal = parseFloat(park.Y || park.lat || 24.1528);
-                        var pLonFinal = parseFloat(park.X || park.lon || 120.6853);
-                        var googleNavigationUrl = "http://maps.google.com/maps?daddr=" + pLatFinal + "," + pLonFinal;
-
-                        var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
-                        var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
-
-                        // 🚦 讀取後台傳來的原始燈號，如果是黑燈 B，將可用車位字串顯示改為「現場公告」
-                        var availableDisplay = available;
-                        if (park.AvailableCarRGB === "B") {
-                            availableDisplay = '<span style="color:#6b7280; font-size:0.85em; font-weight:normal;">現場公告</span>';
-                        } else {
-                            availableDisplay = '<span style="color:' + (available > 0 ? '#10b981' : '#ef4444') + '; font-size:1.2em;">' + available + '</span>';
-                        }
-
-                        validSpots.push({
-                            name: name,
-                            address: address,
-                            total: total,
-                            availableDisplay: availableDisplay,
-                            fare: fare,
-                            parkingId: parkingId,
-                            distance: distance,
-                            googleNavigationUrl: googleNavigationUrl,
-                            badgeColor: badgeColor
-                        });
-                    }
+                    validSpots.push({
+                        name: name,
+                        address: address,
+                        total: total,
+                        availableDisplay: availableDisplay,
+                        fare: fare,
+                        parkingId: parkingId,
+                        distance: distance,
+                        googleNavigationUrl: googleNavigationUrl,
+                        badgeColor: badgeColor
+                    });
                 });
 
-                // 由近到遠排序
-                validSpots.sort(function(a, b) {
-                    return a.distance - b.distance;
-                });
+                // 照距離由近到遠排序
+                validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
-                // 渲染卡片
+                // 開始繪製卡片
                 validSpots.forEach(function(spot) {
                     var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
                         '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
@@ -403,6 +380,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
         if (statusEl) statusEl.innerText = "❌ 無法取得即時車位資料，請檢查雲端通道連線。";
     }
 }
+
 </script>
 </body>
 </html>
