@@ -276,10 +276,10 @@ async function doAdvancedSearch() {
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
 }
-// 3. 即時車位大數據撈取與渲染雷達（終極距離對接版）
+// 3. 即時車位大數據撈取與渲染雷達（終極完美對接版）
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius, onlyRoad) {
     if (!customRadius) customRadius = 5000;
-    if (onlyRoad === undefined) onlyRoad = false; // 預設關閉
+    if (onlyRoad === undefined) onlyRoad = false; // 預設關閉場外路邊分流
     
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
@@ -288,9 +288,13 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
     var includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
 
     try {
-        // 🎯 網址尾端同步補上 &onlyRoad= 參數送給後台 Worker
+        // 🎯 網址參數對齊後台：lat, lon, radius, includeRoad, onlyRoad
         var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad + "&onlyRoad=" + onlyRoad;
-        var response = await fetch(workerUrl);
+        var response = await fetch(workerUrl); 
+        if (!response.ok) throw new Error("Worker 連線失敗");
+        
+        // 🚀【核心修正】：統一宣告變數名稱為 jsonResult，徹底解決定義遺失錯誤！
+        var jsonResult = await response.json();
 
         // 智慧解包：相容各種後台回傳結構
         var rawList = [];
@@ -309,25 +313,27 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                 var validSpots = []; 
 
                 rawList.forEach(function(park) {
-                    // 🎯 直接拿後台算好的 distance！如果後台沒算，前台才用預設值 100 頂替，絕不給它 NaN 的機會
+                    // 直接讀取後台精密計算並排序好的距離，若無則補 0，絕對不給它 NaN 的機會
                     var distance = park.distance !== undefined && park.distance !== null ? parseFloat(park.distance) : 0;
                     
                     // 如果後台回傳的資料超出了半徑，就跳過它
                     if (distance > customRadius) return;
 
-                    var name = park.PARK_NAME || park.name || park.POSITION || "未命名停車場";
+                    var name = park.PARK_NAME || park.POSITION || park.name || "未命名車位";
                     var address = park.ADDRESS || park.address || "台中市區域";
                     var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
                     var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : 0);
-                    var fare = park.fare_desc || park.FARE_DESC || park.PAY_DESC || "費率依現場公告";
+                    var fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
                     var parkingId = park.id || park.ID || ""; 
                     
                     var pLatFinal = parseFloat(park.Y || park.lat || targetLat);
                     var pLonFinal = parseFloat(park.X || park.lon || targetLon);
+                    
+                    // 🚀【導航連結修正】：確保不留非法斷行與空格
                     var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLatFinal + "," + pLonFinal;
 
-                    var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
-                    var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+                    var isRoad = park.type === "路邊車格" || name.includes("🚗") || !park.Y;
+                    var badgeColor = isRoad ? "#10b981" : "#3b82f6";
 
                     // 🚦 即時燈號異常判定 (黑燈 B 處理)
                     var availableDisplay = available;
@@ -350,7 +356,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                     });
                 });
 
-                // 照距離由近到遠排序
+                // 再次確保由近到遠排序
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
                 // 開始繪製卡片
@@ -364,7 +370,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                             '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>剩餘: ' + spot.availableDisplay + '</strong></div>' +
                             '<div style="display:flex; gap: 6px;">';
                     
-                    if (spot.parkingId) {
+                    if (spot.parkingId && !spot.name.includes("🚗")) {
                         cardHtml += '<button onclick="window.open(\'https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=' + spot.parkingId + '\')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>';
                     }
                     
@@ -392,7 +398,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
         if (statusEl) statusEl.innerText = "❌ 無法取得即時車位資料，請檢查雲端通道連線。";
     }
 }
-
 </script>
 </body>
 </html>
