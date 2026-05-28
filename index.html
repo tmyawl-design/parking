@@ -175,7 +175,7 @@ async function doAdvancedSearch() {
                     var myLat = position.coords.latitude;
                     var myLon = position.coords.longitude;
                     if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 5 公里內的即時車位...";
-                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 5000);
+                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 3000);
                 },
                 function(error) {
                     console.error("GPS 定位失敗:", error);
@@ -254,7 +254,7 @@ async function doAdvancedSearch() {
             if (displayName.length > 20) { displayName = originalKeyword; }
             if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
 
-            await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 5000);
+            await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 3000);
         } else {
             if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + originalKeyword + "」的位置，請嘗試改輸入周邊的道路名稱（如：三民路三段）。";
         }
@@ -266,7 +266,7 @@ async function doAdvancedSearch() {
 
 // 3. 即時車位大數據撈取與渲染雷達（完美排序版）
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
-    if (!customRadius) customRadius = 5000;
+    if (!customRadius) customRadius = 3000;
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
     var showRoadCheckbox = document.getElementById('show-road-parking');
