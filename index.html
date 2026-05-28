@@ -164,35 +164,22 @@ async function doAdvancedSearch() {
         alert("請輸入搜尋地點！");
         return;
     }
-// 🎯 智慧攔截與雙軌分流引擎 (區分路邊車格與場內停車場)
-    if (keyword.includes("附近的停車格") || keyword.includes("附近的車格") || keyword.includes("附近的停車位")) {
-        if (statusEl) statusEl.innerText = "📍 正在定位您的 GPS 位置，即將開啟【路邊即時車格】雷達...";
-        executeGpsSearch(true); // 👈 帶入 true，代表強制切換為純路邊車格模式
-        return;
-    } else if (keyword === "附近的停車場" || keyword === "附近" || keyword === "目前位置" || keyword === "我的位置") {
-        if (statusEl) statusEl.innerText = "📍 正在定位您的 GPS 位置，即將搜尋周邊【立體/地下停車場】...";
-        executeGpsSearch(false); // 👈 帶入 false，代表標準外圍場內停車場模式
-        return;
-    }
 
-    // 💡 抽離出來的通用 GPS 定位執行函數
-    function executeGpsSearch(isOnlyRoadMode) {
+    // 🎯 攔截 GPS 定位關鍵字
+    if (keyword === "附近的停車場" || keyword === "附近" || keyword === "目前位置" || keyword === "我的位置") {
+        if (statusEl) statusEl.innerText = "📍 正在要求手機/瀏覽器 GPS 定位權限，請點擊允許...";
+        
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 async function(position) {
                     var myLat = position.coords.latitude;
                     var myLon = position.coords.longitude;
-                    if (statusEl) {
-                        statusEl.innerText = isOnlyRoadMode 
-                            ? "🎯 GPS 定位成功！正在掃描周邊 5 公里內的【路邊即時車格】..."
-                            : "🎯 GPS 定位成功！正在掃描周邊 5 公里內的【即時停車場】...";
-                    }
-                    // 呼叫 API，多帶一個 onlyRoad 參數給後台
-                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 5000, isOnlyRoadMode);
+                    if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 5 公里內的即時車位...";
+                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 5000);
                 },
                 function(error) {
                     console.error("GPS 定位失敗:", error);
-                    if (statusEl) statusEl.innerText = "❌ 定位失敗！請確認手機是否開啟 GPS，或手動輸入地點。";
+                    if (statusEl) statusEl.innerText = "❌ 定位失敗！請確認手機是否開啟 GPS，或手動打字搜尋。";
                     alert("無法取得您的 GPS 位置，請手動輸入地點。");
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
@@ -200,8 +187,8 @@ async function doAdvancedSearch() {
         } else {
             if (statusEl) statusEl.innerText = "❌ 您的瀏覽器不支援內建 GPS 定位功能。";
         }
+        return;
     }
-
 
 // 🎯 【強效正名防飄移結界 - 終極完美相容版】
     var originalKeyword = keyword;
@@ -276,11 +263,10 @@ async function doAdvancedSearch() {
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
 }
-// 3. 即時車位大數據撈取與渲染雷達（終極完美對接版）
-async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius, onlyRoad) {
+
+// 3. 即時車位大數據撈取與渲染雷達（完美排序版）
+async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
     if (!customRadius) customRadius = 5000;
-    if (onlyRoad === undefined) onlyRoad = false; // 預設關閉場外路邊分流
-    
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
     var showRoadCheckbox = document.getElementById('show-road-parking');
@@ -288,78 +274,69 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
     var includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
 
     try {
-        // 🎯 網址參數對齊後台：lat, lon, radius, includeRoad, onlyRoad
-        var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad + "&onlyRoad=" + onlyRoad;
+        var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
         var response = await fetch(workerUrl); 
         if (!response.ok) throw new Error("Worker 連線失敗");
         
-        // 🚀【核心修正】：統一宣告變數名稱為 jsonResult，徹底解決定義遺失錯誤！
-        var jsonResult = await response.json();
-
-        // 智慧解包：相容各種後台回傳結構
-        var rawList = [];
-        if (Array.isArray(jsonResult)) {
-            rawList = jsonResult;
-        } else if (jsonResult && Array.isArray(jsonResult.ParkingAvailabilities)) {
-            rawList = jsonResult.ParkingAvailabilities;
-        } else if (jsonResult && Array.isArray(jsonResult.data)) {
-            rawList = jsonResult.data;
-        }
+        var allTaichungParkings = await response.json();
 
         if (listEl) {
             listEl.innerHTML = ""; 
             
-            if (rawList && rawList.length > 0) {
+            if (Array.isArray(allTaichungParkings) && allTaichungParkings.length > 0) {
                 var validSpots = []; 
 
-                rawList.forEach(function(park) {
-                    // 直接讀取後台精密計算並排序好的距離，若無則補 0，絕對不給它 NaN 的機會
-                    var distance = park.distance !== undefined && park.distance !== null ? parseFloat(park.distance) : 0;
-                    
-                    // 如果後台回傳的資料超出了半徑，就跳過它
-                    if (distance > customRadius) return;
+                allTaichungParkings.forEach(function(park) {
+                    var pLat = parseFloat(park.Y || park.lat || park.LATITUDE || park.latitude || park.py);
+                    var pLon = parseFloat(park.X || park.lon || park.LONGITUDE || park.longitude || park.px);
 
-                    var name = park.PARK_NAME || park.POSITION || park.name || "未命名車位";
-                    var address = park.ADDRESS || park.address || "台中市區域";
-                    var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
-                    var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : 0);
-                    var fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
-                    var parkingId = park.id || park.ID || ""; 
-                    
-                    var pLatFinal = parseFloat(park.Y || park.lat || targetLat);
-                    var pLonFinal = parseFloat(park.X || park.lon || targetLon);
-                    
-                    // 🚀【導航連結修正】：確保不留非法斷行與空格
-                    var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLatFinal + "," + pLonFinal;
+                    if (pLat && pLon) {
+                        var R = 6371000; 
+                        var phi1 = targetLat * Math.PI / 180;
+                        var phi2 = pLat * Math.PI / 180;
+                        var deltaPhi = (pLat - targetLat) * Math.PI / 180;
+                        var deltaLambda = (pLon - targetLon) * Math.PI / 180;
 
-                    var isRoad = park.type === "路邊車格" || name.includes("🚗") || !park.Y;
-                    var badgeColor = isRoad ? "#10b981" : "#3b82f6";
+                        var a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                                Math.cos(phi1) * Math.cos(phi2) *
+                                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        var distance = R * c; 
 
-                    // 🚦 即時燈號異常判定 (黑燈 B 處理)
-                    var availableDisplay = available;
-                    if (park.AvailableCarRGB === "B") {
-                        availableDisplay = '<span style="color:#6b7280; font-size:0.85em; font-weight:normal;">現場公告</span>';
-                    } else {
-                        availableDisplay = '<span style="color:' + (available > 0 ? '#10b981' : '#ef4444') + '; font-size:1.2em;">' + available + '</span>';
+                        if (distance <= customRadius) {
+                            var name = park.PARK_NAME || park.name || park.POSITION || park.position || "未命名停車場";
+                            var address = park.ADDRESS || park.address || "台中市區域";
+                            var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || park.TOTAL || 0);
+                            var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : (park.AVAILABLE || 0));
+                            var fare = park.PAY_DESC || park.fare_desc || park.FARE_DESC || "費率依現場公告";
+                            var parkingId = park.id || park.ID || park.parking_id || ""; 
+
+                            var googleNavigationUrl = "http://googleusercontent.com/maps.google.com/maps?daddr=" + pLat + "," + pLon;
+
+                            var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
+                            var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
+
+                            validSpots.push({
+                                name: name,
+                                address: address,
+                                total: total,
+                                available: available,
+                                fare: fare,
+                                parkingId: parkingId,
+                                distance: distance,
+                                googleNavigationUrl: googleNavigationUrl,
+                                badgeColor: badgeColor
+                            });
+                        }
                     }
-
-                    validSpots.push({
-                        name: name,
-                        address: address,
-                        total: total,
-                        availableDisplay: availableDisplay,
-                        fare: fare,
-                        parkingId: parkingId,
-                        distance: distance,
-                        googleNavigationUrl: googleNavigationUrl,
-                        badgeColor: badgeColor
-                    });
                 });
 
-                // 再次確保由近到遠排序
-                validSpots.sort(function(a, b) { return a.distance - b.distance; });
+                // 由近到遠精密排序
+                validSpots.sort(function(a, b) {
+                    return a.distance - b.distance;
+                });
 
-                // 開始繪製卡片
+                // 渲染卡片
                 validSpots.forEach(function(spot) {
                     var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
                         '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
@@ -367,10 +344,10 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                         '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
                         '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
                         '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
-                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>剩餘: ' + spot.availableDisplay + '</strong></div>' +
+                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>剩餘: <span style="color:' + (spot.available > 0 ? '#10b981' : '#ef4444') + '; font-size:1.2em;">' + spot.available + '</span></strong></div>' +
                             '<div style="display:flex; gap: 6px;">';
                     
-                    if (spot.parkingId && !spot.name.includes("🚗")) {
+                    if (spot.parkingId) {
                         cardHtml += '<button onclick="window.open(\'https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=' + spot.parkingId + '\')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>';
                     }
                     
