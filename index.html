@@ -350,10 +350,17 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
 // 渲染渲染卡片 (直接讀取物件內算好的導航網址，完美修正 0,0 錯誤)
-validSpots.forEach(function(spot) {
-    
-    // ✨ 核心修復：上面 push 的時候已經把網址做好了！不要再去讀取不存在的經緯度
-    var navUrl = spot.googleNavigationUrl;
+// 判斷是否為手機裝置
+var isMobile = /(iPhone|iPod|iPad|Android)/i.test(navigator.userAgent);
+var navUrl = "";
+
+if (isMobile) {
+    // 📱 手機版：改用 Google Maps 專用 App 暗號 (部分手機能直接逼近導航就緒)
+    navUrl = "google.navigation:q=" + spot.googleNavigationUrl.split('destination=')[1].split('&')[0] + "&mode=d";
+} else {
+    // 💻 電腦版：維持原來的標準網頁格式
+    navUrl = spot.googleNavigationUrl;
+}
     var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
 
     var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
@@ -369,8 +376,9 @@ validSpots.forEach(function(spot) {
         cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
     }
     
-    cardHtml += '<a href="' + navUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</a>' +
-            '</div>' +
+// ✨ 換成綁定 onclick 呼叫獨立的自適應導航分流函數
+cardHtml += '<button onclick="startNavigation(' + currentLat + ',' + currentLon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
+        '</div>' +
         '</div>' +
     '</div>';
 
