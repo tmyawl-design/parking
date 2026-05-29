@@ -313,8 +313,14 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                             }
 
                             // ⚡️ 終極修復：秒開手機 Google Maps 直接導航的標準 Universal Link 格式
-                            var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
+// 改用手機 App 專用的 schema 協議 (comgooglemaps://)
+var googleNavigationUrl = "comgooglemaps://?daddr=" + pLat + "," + pLon + "&directionsmode=driving";
 
+// 為了相容電腦版，可以做個簡單的防錯判斷：
+if (!navigator.userAgent.match(/(iPhone|iPod|iPad|Android)/i)) {
+    // 如果是電腦桌機，維持原來的網頁版網址
+    googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
+}
                             // 💡 需求 2: 即時四色燈號邏輯修正 (B: 未知 / G: 充足 / Y: 緊張 / R: 0)
                             var badgeColor = "#9ca3af"; // 預設灰 (B: 未知)
                             var lightText = "未知";
