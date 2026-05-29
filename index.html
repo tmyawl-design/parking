@@ -349,29 +349,33 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                 // 精密排序
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
-                // 渲染渲染卡片
-                validSpots.forEach(function(spot) {
-                    var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
-                        '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
-                        '<p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ' + spot.address + '</p>' +
-                        '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
-                        '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
-                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
-                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>即時狀態: <span style="color:' + spot.badgeColor + '; font-weight:bold;">' + spot.lightText + ' (剩餘:' + spot.available + ')</span></strong></div>' +
-                            '<div style="display:flex; gap: 6px;">';
-                    
-                    if (spot.parkingId) {
-                        cardHtml += '<button onclick="window.open(\'https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=' + spot.parkingId + '\', \'_blank\')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</button>';
-                    }
-                    
-                    // 🟢 修改點：onclick 內補上 '_blank' 參數，強制觸發手機 App 的 Universal Link
-                    cardHtml += '<button onclick="window.open(\'' + spot.googleNavigationUrl + '\', \'_blank\')" style="background:' + spot.badgeColor + '; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em;">導航</button>' +
-                            '</div>' +
-                        '</div>' +
-                    '</div>';
+// 渲染渲染卡片 (優化導航點擊版)
+validSpots.forEach(function(spot) {
+    // 預先處理好雙引號問題，確保 HTML 乾淨
+    var navUrl = spot.googleNavigationUrl;
+    var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
 
-                    listEl.innerHTML += cardHtml;
-                });
+    var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
+        '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
+        '<p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ' + spot.address + '</p>' +
+        '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
+        '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
+            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>即時狀態: <span style="color:' + spot.badgeColor + '; font-weight:bold;">' + spot.lightText + ' (剩餘:' + spot.available + ')</span></strong></div>' +
+            '<div style="display:flex; gap: 6px; align-items: center;">';
+    
+    if (spot.parkingId) {
+        cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; bg-color:#f3f4f6; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
+    }
+    
+    // ✨ 核心修復：把按鈕改成 <a> 標籤，透過 href 與 target="_blank" 完美相容所有手機外跳 Google Maps App
+    cardHtml += '<a href="' + navUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</a>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+
+    listEl.innerHTML += cardHtml;
+});
 
                 if (statusEl) {
                     if (validSpots.length > 0) {
