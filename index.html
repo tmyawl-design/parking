@@ -310,7 +310,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                             var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available !== undefined ? park.available : (park.AVAILABLE || 0));
                             var fare = park.PAY_DESC || park.fare_desc || park.FARE_DESC || "費率依現場公告";
                             var parkingId = park.id || park.ID || park.parking_id || ""; 
-                            var googleNavigationUrl = "https://maps.google.com/maps?daddr=" + pLat + "," + pLon;
+var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
 
                             var isOffstreet = name.includes("🏢") || (park.type && park.type.includes("立體")) || name.includes("P");
                             var badgeColor = isOffstreet ? "#3b82f6" : "#10b981";
