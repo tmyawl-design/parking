@@ -79,6 +79,23 @@
 var recognition = null;
 var isRecording = false;
 
+// 🍏 1. 裝置自適應導航函數（移到最頂層獨立存放，確保所有按鈕絕對呼叫得到）
+function startNavigation(lat, lon) {
+    if (!lat || !lon) {
+        alert("座標資料異常，無法開啟導航！");
+        return;
+    }
+    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
+    if (isIOS) {
+        // iOS 喚醒內建地圖 (開車模式預覽)
+        window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
+    } else {
+        // Android 與電腦喚醒 Google Maps 官方 Universal Link
+        window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
+    }
+}
+
+// 🎤 2. 語音辨識初始化
 document.addEventListener('DOMContentLoaded', function() {
     var statusEl = document.getElementById('status-text');
     if (statusEl) {
@@ -143,6 +160,7 @@ function toggleVoiceSearch() {
     }
 }
 
+// 🔍 3. 行政區/關鍵字進階經緯度搜尋
 async function doAdvancedSearch() {
     var searchInput = document.getElementById('search-input');
     var statusEl = document.getElementById('status-text');
@@ -154,7 +172,6 @@ async function doAdvancedSearch() {
         return;
     }
 
-    // 💡 需求 3: 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
     if (keyword.includes("附近的停車格") || keyword.includes("附近的停車位")) {
         if (showRoadCheckbox) showRoadCheckbox.checked = true;
     }
@@ -168,7 +185,6 @@ async function doAdvancedSearch() {
                     var myLat = position.coords.latitude;
                     var myLon = position.coords.longitude;
                     if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 3 公里內的即時車位...";
-                    // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
                     await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 3000);
                 },
                 function(error) {
@@ -187,37 +203,20 @@ async function doAdvancedSearch() {
     var originalKeyword = keyword;
     var lowerKeyword = keyword.toLowerCase();
     
-    if (keyword === "逢甲") {
-        keyword = "逢甲夜市"; 
-    } else if (keyword === "一中" || keyword === "一中街" || keyword === "一中商圈") {
-        keyword = "台中一中街商圈"; 
-    } else if (keyword.includes("五禾堂")) {
-        keyword = "台中市太平區五禾堂中醫診所"; 
-    } else if (keyword.includes("東勢林場")) {
-        keyword = "東勢林場";
-    } else if (keyword.includes("柳川") && (keyword.includes("水岸") || keyword.includes("步道"))) {
-        keyword = "台中市 柳川西路三段";
-    } else if (lowerKeyword.includes("soga") || keyword.includes("太平洋百貨")) {
-        if (keyword.includes("豐原")) {
-            keyword = "豐原太平洋SOGO百貨";
-        } else {
-            keyword = "太平洋SOGO百貨"; 
-        }
-    } else if (keyword.includes("廣三") && lowerKeyword.includes("sogo")) {
-        keyword = "廣三SOGO百貨";
-    } else if (keyword.includes("綠美圖")) {
-        keyword = "臺中綠美圖"; 
-    } else if (keyword.includes("科博館")) {
-        keyword = "國立自然科學博物館";
-    } else if (keyword.includes("中友")) {
-        keyword = "中友百貨";
-    } else if (keyword.includes("馬卡龍")) {
-        keyword = "馬卡龍公園";
-    } else if (keyword.includes("LaLaport") || keyword.includes("lalaport") || keyword.includes("三井")) {
-        keyword = "LaLaport 台中";
-    } else if (keyword.includes("武陵")) {
-        keyword = "武陵農場";
-    }
+    if (keyword === "逢甲") keyword = "逢甲夜市"; 
+    else if (keyword === "一中" || keyword === "一中街" || keyword === "一中商圈") keyword = "台中一中街商圈"; 
+    else if (keyword.includes("五禾堂")) keyword = "台中市太平區五禾堂中醫診所"; 
+    else if (keyword.includes("東勢林場")) keyword = "東勢林場";
+    else if (keyword.includes("柳川") && (keyword.includes("水岸") || keyword.includes("步道"))) keyword = "台中市 柳川西路三段";
+    else if (lowerKeyword.includes("soga") || keyword.includes("太平洋百貨")) {
+        keyword = keyword.includes("豐原") ? "豐原太平洋SOGO百貨" : "太平洋SOGO百貨";
+    } else if (keyword.includes("廣三") && lowerKeyword.includes("sogo")) keyword = "廣三SOGO百貨";
+    else if (keyword.includes("綠美圖")) keyword = "臺中綠美圖"; 
+    else if (keyword.includes("科博館")) keyword = "國立自然科學博物館";
+    else if (keyword.includes("中友")) keyword = "中友百貨";
+    else if (keyword.includes("馬卡龍")) keyword = "馬卡龍公園";
+    else if (keyword.includes("LaLaport") || keyword.includes("lalaport") || keyword.includes("三井")) keyword = "LaLaport 台中";
+    else if (keyword.includes("武陵")) keyword = "武陵農場";
 
     var searchUrlName = keyword;
     if (!searchUrlName.includes("台中") && !searchUrlName.includes("臺中") && !searchUrlName.includes("太平")) {
@@ -241,12 +240,8 @@ async function doAdvancedSearch() {
             var targetLat = parseFloat(data[0].lat);
             var targetLon = parseFloat(data[0].lon);
             var displayName = data[0].display_name.split(',')[0]; 
-
             if (displayName.length > 20) { displayName = originalKeyword; }
             if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
-
-            
-            // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
             await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 3000);
         } else {
             if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + originalKeyword + "」的位置，請嘗試改輸入周邊的道路名稱（如：三民路三段）。";
@@ -256,21 +251,9 @@ async function doAdvancedSearch() {
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
 }
-// 這裡就是最乾淨的外層空間！請把 startNavigation 函數大方地貼在這裡 👇
 
-function startNavigation(lat, lon) {
-    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-    if (isIOS) {
-        window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
-    } else {
-        window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
-    }
-}
-
-
-    
+// 📡 4. 從 Proxy 撈取即時交通資料並渲染卡片
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
-    // 💡 需求 1: 確保搜尋限制完全鎖定在 3 公里內
     if (!customRadius) customRadius = 3000;
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
@@ -294,7 +277,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                 var validSpots = []; 
 
                 allTaichungParkings.forEach(function(park) {
-                    // 正確映射舊版與新版後台可能產生的所有座標欄位名稱
                     var pLat = parseFloat(park.Y || park.lat || park.py || 0);
                     var pLon = parseFloat(park.X || park.lon || park.px || 0);
 
@@ -311,7 +293,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                         var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                         var distance = R * c; 
 
-                        // 💡 需求 1: 超過 3 公里 (3000公尺) 絕對阻斷不顯示
                         if (distance <= customRadius) {
                             var name = park.PARK_NAME || park.name || "未知停車場";
                             var address = park.ADDRESS || park.address || "台中市區域";
@@ -320,26 +301,21 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                             var fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
                             var parkingId = park.id || park.ID || ""; 
 
-                            // 💡 需求 3: 如果使用者輸入了「附近的停車格/車位」，強制過濾卡片清單中所有場內停車場，只留「🚗 路邊」
                             if ((keywordText.includes("附近的停車格") || keywordText.includes("附近的停車位")) && !name.includes("🚗")) {
-                                return; // 直接跳過這筆場內不加入
+                                return; 
                             }
-
-                            // ⚡️ 終極修復：秒開手機 Google Maps 直接導航的標準 Universal Link 格式
-var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
                             
-                            // 💡 需求 2: 即時四色燈號邏輯修正 (B: 未知 / G: 充足 / Y: 緊張 / R: 0)
-                            var badgeColor = "#9ca3af"; // 預設灰 (B: 未知)
+                            var badgeColor = "#9ca3af"; 
                             var lightText = "未知";
                             
                             if (available > 10) {
-                                badgeColor = "#10b981"; // 綠色
+                                badgeColor = "#10b981"; 
                                 lightText = "充足";
                             } else if (available > 0) {
-                                badgeColor = "#f59e0b"; // 黃色
+                                badgeColor = "#f59e0b"; 
                                 lightText = "緊張";
                             } else if (available === 0 && total > 0) {
-                                badgeColor = "#ef4444"; // 紅色
+                                badgeColor = "#ef4444"; 
                                 lightText = "滿位 (0)";
                             }
 
@@ -351,7 +327,8 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                                 fare: fare,
                                 parkingId: parkingId,
                                 distance: distance,
-                                googleNavigationUrl: googleNavigationUrl,
+                                lat: pLat, // 儲存純數字經緯度，方便前端按鈕直接使用
+                                lon: pLon,
                                 badgeColor: badgeColor,
                                 lightText: lightText
                             });
@@ -359,17 +336,9 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                     }
                 });
 
-// 精密排序
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
-                // 🌟 【完美修復版】迴圈渲染卡片開始 🌟
                 validSpots.forEach(function(spot) {
-                    
-                    // 從原本算好的導航網址中，精確把緯度與經度切出來餵給 startNavigation 函數
-                    var latLonArray = spot.googleNavigationUrl.split('destination=')[1].split('&')[0].split(',');
-                    var sLat = latLonArray[0];
-                    var sLon = latLonArray[1];
-
                     var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
 
                     var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
@@ -385,15 +354,14 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                         cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
                     }
                     
-                    // ✨ 綁定 onclick，將剛才切出來的正確 lat, lon 傳入自適應導航分流函數
-                    cardHtml += '<button onclick="startNavigation(' + sLat + ',' + sLon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
+                    // ✨ 乾淨俐落：直接代入 spot.lat 和 spot.lon，不需再用網址做字串切割
+                    cardHtml += '<button onclick="startNavigation(' + spot.lat + ',' + spot.lon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
                             '</div>' +
                         '</div>' +
                     '</div>';
 
                     listEl.innerHTML += cardHtml;
                 });
-                // 🌟 【完美修復版】迴圈渲染卡片結束 🌟
                 
                 if (statusEl) {
                     if (validSpots.length > 0) {
