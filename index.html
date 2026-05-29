@@ -245,6 +245,20 @@ async function doAdvancedSearch() {
             if (displayName.length > 20) { displayName = originalKeyword; }
             if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
 
+// 📱 放在最外層的獨立分流導航功能
+function startNavigation(lat, lon) {
+    // 🔍 判斷是不是 iPhone / iPad 行動裝置
+    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
+    
+    if (isIOS) {
+        // 🍏 iOS 裝置：直接喚醒 Apple 內建地圖 App (開車模式)
+        window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
+    } else {
+        // 🤖 Android 手機與 💻 電腦網頁：開啟 Google Maps 標準導航路徑規劃
+        window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
+    }
+}
+            
             // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
             await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 3000);
         } else {
@@ -346,44 +360,41 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                     }
                 });
 
-                // 精密排序
+// 精密排序
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
-// 渲染渲染卡片 (直接讀取物件內算好的導航網址，完美修正 0,0 錯誤)
-// 判斷是否為手機裝置
-var isMobile = /(iPhone|iPod|iPad|Android)/i.test(navigator.userAgent);
-var navUrl = "";
+                // 🌟 【完美修復版】迴圈渲染卡片開始 🌟
+                validSpots.forEach(function(spot) {
+                    
+                    // 從原本算好的導航網址中，精確把緯度與經度切出來餵給 startNavigation 函數
+                    var latLonArray = spot.googleNavigationUrl.split('destination=')[1].split('&')[0].split(',');
+                    var sLat = latLonArray[0];
+                    var sLon = latLonArray[1];
 
-if (isMobile) {
-    // 📱 手機版：改用 Google Maps 專用 App 暗號 (部分手機能直接逼近導航就緒)
-    navUrl = "google.navigation:q=" + spot.googleNavigationUrl.split('destination=')[1].split('&')[0] + "&mode=d";
-} else {
-    // 💻 電腦版：維持原來的標準網頁格式
-    navUrl = spot.googleNavigationUrl;
-}
-    var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
+                    var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
 
-    var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
-        '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
-        '<p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ' + spot.address + '</p>' +
-        '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
-        '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
-        '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
-            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>即時狀態: <span style="color:' + spot.badgeColor + '; font-weight:bold;">' + spot.lightText + ' (剩餘:' + spot.available + ')</span></strong></div>' +
-            '<div style="display:flex; gap: 6px; align-items: center;">';
-    
-    if (spot.parkingId) {
-        cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
-    }
-    
-// ✨ 換成綁定 onclick 呼叫獨立的自適應導航分流函數
-cardHtml += '<button onclick="startNavigation(' + currentLat + ',' + currentLon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
-        '</div>' +
-        '</div>' +
-    '</div>';
+                    var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
+                        '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
+                        '<p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ' + spot.address + '</p>' +
+                        '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
+                        '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
+                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>即時狀態: <span style="color:' + spot.badgeColor + '; font-weight:bold;">' + spot.lightText + ' (剩餘:' + spot.available + ')</span></strong></div>' +
+                            '<div style="display:flex; gap: 6px; align-items: center;">';
+                    
+                    if (spot.parkingId) {
+                        cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
+                    }
+                    
+                    // ✨ 綁定 onclick，將剛才切出來的正確 lat, lon 傳入自適應導航分流函數
+                    cardHtml += '<button onclick="startNavigation(' + sLat + ',' + sLon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
 
-    listEl.innerHTML += cardHtml;
-});
+                    listEl.innerHTML += cardHtml;
+                });
+                // 🌟 【完美修復版】迴圈渲染卡片結束 🌟
                 
                 if (statusEl) {
                     if (validSpots.length > 0) {
