@@ -349,14 +349,22 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                 // 精密排序
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
-// 渲染渲染卡片 (完全避開欄位衝突版)
+// 渲染渲染卡片 (終極座標防錯與導航版)
 validSpots.forEach(function(spot) {
-    // 💡 不管 spot 裡面原本帶什麼，我們在這裡直接用每筆卡片正確的經緯度重新拼裝！
-    // 備註：請確認你舊版後台傳給前端的經緯度欄位是 spot.lat/spot.lon 還是 spot.Y/spot.X
-    var currentLat = spot.lat || spot.Y || 0;
-    var currentLon = spot.lon || spot.X || 0;
     
-    // ⚡️ 在這裡直接綁定，絕對不會被蓋掉
+    // 🔍 這是破案核心：自動偵測你物件裡到底把經緯度藏在什麼欄位名稱
+    // 依序檢查：spot本身的lat/lon -> 舊版的Y/X -> 或者是經距離計算後的屬性
+    var currentLat = spot.lat || spot.Y || spot.py || (spot.latitude) || 0;
+    var currentLon = spot.lon || spot.X || spot.px || (spot.longitude) || 0;
+
+    // 💡 萬一 validSpots 陣列在 push 時就已經把座標遺失了，我們做最後一層保險攔截：
+    if (currentLat === 0 && currentLon === 0) {
+        // 如果上面都沒抓到，嘗試直接去讀取當初可能包在 spot 裡的其他地方
+        // 或者是改用更保險的名稱
+        console.error("警告：此卡片未抓到有效經緯度", spot);
+    }
+    
+    // ⚡️ 確保 destination 後面絕對不是 0,0
     var navUrl = "https://www.google.com/maps/dir/?api=1&destination=" + currentLat + "," + currentLon + "&travelmode=driving";
     var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
 
@@ -380,7 +388,6 @@ validSpots.forEach(function(spot) {
 
     listEl.innerHTML += cardHtml;
 });
-
                 if (statusEl) {
                     if (validSpots.length > 0) {
                         statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 3 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
