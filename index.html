@@ -245,19 +245,6 @@ async function doAdvancedSearch() {
             if (displayName.length > 20) { displayName = originalKeyword; }
             if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
 
-// 📱 放在最外層的獨立分流導航功能
-function startNavigation(lat, lon) {
-    // 🔍 判斷是不是 iPhone / iPad 行動裝置
-    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-    
-    if (isIOS) {
-        // 🍏 iOS 裝置：直接喚醒 Apple 內建地圖 App (開車模式)
-        window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
-    } else {
-        // 🤖 Android 手機與 💻 電腦網頁：開啟 Google Maps 標準導航路徑規劃
-        window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
-    }
-}
             
             // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
             await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 3000);
@@ -269,7 +256,19 @@ function startNavigation(lat, lon) {
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
 }
+// 這裡就是最乾淨的外層空間！請把 startNavigation 函數大方地貼在這裡 👇
 
+function startNavigation(lat, lon) {
+    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
+    if (isIOS) {
+        window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
+    } else {
+        window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
+    }
+}
+
+
+    
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
     // 💡 需求 1: 確保搜尋限制完全鎖定在 3 公里內
     if (!customRadius) customRadius = 3000;
