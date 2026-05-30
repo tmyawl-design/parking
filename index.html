@@ -3,265 +3,412 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台中即時停車導航雷達</title>
-    
-    <!-- 引入 FontAwesome & Leaflet CSS -->
+    <title>台中即時停車導航</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0; padding: 15px; background-color: #f3f4f6; color: #1f2937;
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; }
         }
-        .container {
-            max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        .recording-active {
+            animation: pulse 1.5s infinite;
+            background-color: #ef4444 !important; /* 錄音中變成紅色閃爍 */
         }
-        .search-box { display: flex; gap: 10px; margin-bottom: 15px; }
-        input[type="text"] { flex: 1; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; }
-        button.btn-search { background-color: #2563eb; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .mic-btn { background-color: #e5e7eb; border: none; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; }
-        .recording-active { background-color: #ef4444 !important; color: white !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        .tools-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; font-size: 0.9em; }
-        .toggle-map-btn { background-color: #4b5563; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
-        .main-layout { display: flex; gap: 20px; margin-top: 15px; flex-direction: column-reverse; }
-        @media (min-width: 768px) { .main-layout { flex-direction: row; } }
-        .list-panel { flex: 1; max-height: 600px; overflow-y: auto; padding-right: 5px; }
-        .map-panel { flex: 1; height: 350px; min-height: 350px; border-radius: 8px; border: 1px solid #e5e7eb; position: relative; z-index: 1; }
-        @media (min-width: 768px) { .map-panel { height: 600px; } }
-        .map-hidden { display: none !important; }
-        .status-bar { background-color: #eff6ff; color: #1e40af; padding: 10px 15px; border-radius: 6px; margin-bottom: 15px; font-size: 0.95em; display: flex; align-items: center; gap: 10px; }
-        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .hidden { display: none !important; }
-        .detail-iframe-container { width: 100%; height: 220px; margin-top: 10px; border-radius: 6px; overflow: hidden; border: 1px solid #d1d5db; background-color: #f9fafb; }
     </style>
-
-    <!-- 引入 Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
-<body>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
 
-<div class="container">
-    <h2 style="margin-top:0; color:#111827;"><i class="fa-solid fa-square-parking text-blue-600"></i> 台中即時停車導航雷達</h2>
-    
-    <div class="search-box">
-        <input type="text" id="search-input" placeholder="輸入台中景點（例：逢甲、一中街）或打「附近」...">
-        <button id="mic-btn" class="mic-btn" onclick="toggleVoiceSearch()"><i id="mic-icon" class="fa-solid fa-microphone text-xl"></i></button>
-        <button class="btn-search" onclick="doAdvancedSearch()">雷達搜尋</button>
-    </div>
+    <header class="bg-blue-600 text-white shadow-md p-4 sticky top-0 z-50 flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <i class="fa-solid fa-square-p text-yellow-300 text-2xl"></i>
+            台中車位即時查
+        </h1>
+        <a href="https://traffic.taichung.gov.tw/" target="_blank" class="bg-blue-700 hover:bg-blue-800 text-xs py-1.5 px-3 rounded-full transition-all flex items-center gap-1">
+            <i class="fa-solid fa-globe"></i> 台中交通網
+        </a>
+    </header>
 
-    <div class="tools-row">
-        <div>
-            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-weight: bold;">
-                <input type="checkbox" id="show-road-parking"> 包含路邊智慧停車格 (🚗)
-            </label>
-            <span id="mic-tip" style="margin-left: 15px; color:#6b7280; font-style: italic;">按我開始語音搜尋</span>
+    <main class="flex-1 p-4 pb-32 overflow-y-auto">
+        
+        <div class="bg-white rounded-xl p-3 shadow-sm mb-4 border border-gray-200">
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
+                    <input type="text" id="search-input" placeholder="打字輸入地名（如：逢甲夜市、一中街）..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                </div>
+                <button onclick="doAdvancedSearch()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    搜尋
+                </button>
+            </div>
         </div>
-        <button type="button" class="toggle-map-btn" onclick="toggleMapVisibility()">
-            <i class="fa-solid fa-map-location-dot"></i> <span id="toggle-map-text">隱藏地圖</span>
+        
+        <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
+                <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
+            </label>
+        </div>
+
+        <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
+            <p id="status-text" class="text-gray-600 font-medium">請輸入想去的台中景點（如：一中街、LaLaport）或按下方語音開始搜尋...</p>
+        </div>
+
+        <div class="space-y-3" id="parking-list">
+            <div class="text-center text-gray-500 py-8">請在上方輸入地點進行即時車位雷達搜尋 🔍</div>
+        </div>
+    </main>
+
+    <div class="fixed bottom-6 left-0 right-0 flex flex-col items-center justify-center z-50 pointer-events-none">
+        <span id="mic-tip" class="bg-gray-800 text-white text-xs px-3 py-1 rounded-full shadow-md mb-2 pointer-events-auto font-medium">按我開始語音搜尋</span>
+        <button id="mic-btn" onclick="toggleVoiceSearch()" class="pointer-events-auto bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 focus:outline-none">
+            <i id="mic-icon" class="fa-solid fa-microphone text-2xl"></i>
         </button>
     </div>
 
-    <div class="status-bar">
-        <div id="loading-spinner" class="spinner hidden"></div>
-        <span id="status-text">正在初始化雷達系統...</span>
-    </div>
-
-    <div class="main-layout">
-        <div class="list-panel" id="parking-list">
-            <div style="color:#9ca3af; text-align:center; padding-top:40px;">
-                <i class="fa-solid fa-folder-open text-3xl" style="margin-bottom:10px; display:block;"></i> 這裡目前空空如也，請在上方輸入地點發動雷達！
-            </div>
-        </div>
-        <div id="map" class="map-panel"></div>
-    </div>
-</div>
-
+    <footer class="mt-8 mb-6 px-4 text-center text-gray-400 text-[11px] leading-relaxed max-w-md mx-auto border-t border-gray-100 pt-4">
+        <p class="font-semibold mb-1">Copyright © 2026 tmyawl-design. All Rights Reserved.</p>
+        <p class="mb-2">本專案為個人學術研究與前端開發作品集，嚴禁任何未經授權之商業轉售與營利行為。</p>
+        <p class="text-gray-400/80">
+            💡 <span class="font-medium">免責聲明：</span>本網頁僅供個人技術練習使用，不作任何商業盈利用途。
+            資料來源為台中市即時交通網之公開傳輸內容，即時車位資訊及費率請以現場實際公告為準。
+        </p>
+    </footer>
+    
 <script>
-var recognition = null, isRecording = false, map = null, markerGroup = null, isMapVisible = true;
+var recognition = null;
+var isRecording = false;
 
 document.addEventListener('DOMContentLoaded', function() {
     var statusEl = document.getElementById('status-text');
-    try {
-        map = L.map('map', { center: [24.1632, 120.6471], zoom: 13 });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        markerGroup = L.layerGroup().addTo(map);
-        if (statusEl) statusEl.innerText = "💡 雷達已就緒！請輸入景點開始搜尋！";
-    } catch (e) { console.error(e); }
+    if (statusEl) {
+        statusEl.innerText = "💡 請輸入想去的台中景點（如：一中街、逢甲夜市）開始搜尋！";
+    }
 
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
-        recognition = new SpeechRecognition(); recognition.lang = 'zh-TW';
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'zh-TW';
+
         recognition.onstart = function() {
-            isRecording = true; document.getElementById('mic-btn').classList.add('recording-active');
-            document.getElementById('mic-icon').className = 'fa-solid fa-stop';
+            isRecording = true;
+            var micBtn = document.getElementById('mic-btn');
+            var micIcon = document.getElementById('mic-icon');
+            var micTip = document.getElementById('mic-tip');
+            if (micBtn) micBtn.classList.add('recording-active');
+            if (micIcon) { micIcon.className = 'fa-solid fa-stop text-2xl'; }
+            if (micTip) micTip.innerText = "🛑 正在聆聽中，請說話...再點一次可停止";
         };
+
         recognition.onend = function() {
-            isRecording = false; document.getElementById('mic-btn').classList.remove('recording-active');
-            document.getElementById('mic-icon').className = 'fa-solid fa-microphone';
+            isRecording = false;
+            var micBtn = document.getElementById('mic-btn');
+            var micIcon = document.getElementById('mic-icon');
+            var micTip = document.getElementById('mic-tip');
+            if (micBtn) micBtn.classList.remove('recording-active');
+            if (micIcon) { micIcon.className = 'fa-solid fa-microphone text-2xl'; }
+            if (micTip) micTip.innerText = "按我開始語音搜尋";
         };
-        recognition.onresult = function(e) {
-            document.getElementById('search-input').value = e.results[0][0].transcript.replace(/[.。?？!！]/g, "");
-            doAdvancedSearch();
+
+        recognition.onresult = function(event) {
+            var resultText = event.results[0][0].transcript;
+            resultText = resultText.replace(/[.。?？!！]/g, "");
+            var searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.value = resultText;
+                doAdvancedSearch();
+            }
         };
-    } else { document.getElementById('mic-btn').style.display = 'none'; }
+
+        recognition.onerror = function(event) {
+            console.error("語音辨識錯誤:", event.error);
+            var micTip = document.getElementById('mic-tip');
+            if (micTip) micTip.innerText = "❌ 語音辨識失敗，請再試一次";
+        };
+    } else {
+        var micTip = document.getElementById('mic-tip');
+        if (micTip) micTip.innerText = "❌ 您的瀏覽器不支援語音辨識";
+        var micBtn = document.getElementById('mic-btn');
+        if (micBtn) micBtn.style.display = 'none';
+    }
 });
 
-function toggleMapVisibility() {
-    var mapEl = document.getElementById('map');
-    var btnText = document.getElementById('toggle-map-text');
-    if (isMapVisible) {
-        mapEl.classList.add('map-hidden'); btnText.innerText = "顯示地圖"; isMapVisible = false;
+function toggleVoiceSearch() {
+    if (!recognition) return;
+    if (isRecording) {
+        recognition.stop();
     } else {
-        mapEl.classList.remove('map-hidden'); btnText.innerText = "隱藏地圖"; isMapVisible = true;
-        if (map) { setTimeout(function() { map.invalidateSize(); }, 100); }
+        recognition.start();
     }
-}
-
-function toggleVoiceSearch() { if (!recognition) return; if (isRecording) recognition.stop(); else recognition.start(); }
-function startNavigation(lat, lon) {
-    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
-    if (isIOS) window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
-    else window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
-}
-
-// 💡 核心優化：點擊詳情按鈕時，才動態把 Iframe 塞進 HTML 裡（即時載入，絕不卡頓）
-function toggleCardDetails(parkingId, infoUrl) {
-    var container = document.getElementById('iframe-container-' + parkingId);
-    var btn = document.getElementById('detail-btn-' + parkingId);
-    if (!container) return;
-    
-    if (container.classList.contains('hidden')) {
-        // 如果容器裡面還沒有 iframe，現在才動態建立它
-        if (container.innerHTML === "") {
-            container.innerHTML = '<iframe src="' + infoUrl + '" style="width:100%; height:100%; border:none; background:#fff;"></iframe>';
-        }
-        container.classList.remove('hidden');
-        btn.innerHTML = '<i class="fa-solid fa-chevron-up"></i> 收合詳情';
-    } else {
-        container.classList.add('hidden');
-        btn.innerHTML = '<i class="fa-solid fa-circle-info"></i> 詳情';
-    }
-}
-
-// 💡 地圖彈窗動態載入：只有打開 Popup 的時候，才去建立 iframe
-function onPopupOpen(e) {
-    var popup = e.popup;
-    var parkingId = popup.options.parkingId;
-    if (parkingId) {
-        var iframePlaceholder = document.getElementById('map-iframe-' + parkingId);
-        if (iframePlaceholder && iframePlaceholder.innerHTML === "") {
-            var url = "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + parkingId;
-            iframePlaceholder.innerHTML = '<iframe src="' + url + '" style="width:100%; height:180px; border:1px solid #e5e7eb; border-radius:6px; margin-top:6px; background:#fff;"></iframe>';
-        }
-    }
-}
-
-function toggleLoading(show, message) {
-    var spinner = document.getElementById('loading-spinner');
-    var statusEl = document.getElementById('status-text');
-    if (spinner) { if (show) spinner.classList.remove('hidden'); else spinner.classList.add('hidden'); }
-    if (statusEl && message) statusEl.innerText = message;
 }
 
 async function doAdvancedSearch() {
-    var keyword = document.getElementById('search-input').value.trim();
-    if (!keyword) { alert("請輸入搜尋地點！"); return; }
+    var searchInput = document.getElementById('search-input');
+    var statusEl = document.getElementById('status-text');
+    var showRoadCheckbox = document.getElementById('show-road-parking');
     
-    var includeRoad = document.getElementById('show-road-parking').checked;
-    if (keyword.includes("附近的停車格") || keyword.includes("附近的停車位")) includeRoad = true;
+    var keyword = searchInput ? searchInput.value.trim() : "";
+    if (!keyword) {
+        alert("請輸入搜尋地點！");
+        return;
+    }
 
-    if (keyword.includes("附近") || keyword.includes("目前位置") || keyword.includes("我的位置")) {
-        toggleLoading(true, "📍 正在取得 GPS 定位權限...");
+    // 💡 需求 3: 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
+    if (keyword.includes("附近的停車格") || keyword.includes("附近的停車位")) {
+        if (showRoadCheckbox) showRoadCheckbox.checked = true;
+    }
+
+    if (keyword.includes("附近的停車場") || keyword.includes("附近") || keyword.includes("目前位置") || keyword.includes("我的位置") || keyword.includes("附近的停車格") || keyword.includes("附近的停車位")) {
+        if (statusEl) statusEl.innerText = "📍 正在要求手機/瀏覽器 GPS 定位權限，請點擊允許...";
+        
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async function(pos) {
-                toggleLoading(true, "🎯 定位成功！掃描周邊即時車位...");
-                await callWorkerAPI(pos.coords.latitude, pos.coords.longitude, "您的目前位置", includeRoad);
-            }, function() { toggleLoading(false, "❌ 定位失敗"); }, { timeout: 10000 });
+            navigator.geolocation.getCurrentPosition(
+                async function(position) {
+                    var myLat = position.coords.latitude;
+                    var myLon = position.coords.longitude;
+                    if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 3 公里內的即時車位...";
+                    // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
+                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 3000);
+                },
+                function(error) {
+                    console.error("GPS 定位失敗:", error);
+                    if (statusEl) statusEl.innerText = "❌ 定位失敗！請確認手機是否開啟 GPS，或手動打字搜尋。";
+                    alert("無法取得您的 GPS 位置，請手動輸入地點。");
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        } else {
+            if (statusEl) statusEl.innerText = "❌ 您的瀏覽器不支援內建 GPS 定位功能。";
         }
         return;
     }
 
-    toggleLoading(true, "🔍 正在精確解碼「" + keyword + "」的地圖座標...");
+    var originalKeyword = keyword;
+    var lowerKeyword = keyword.toLowerCase();
+    
+    if (keyword === "逢甲") {
+        keyword = "逢甲夜市"; 
+    } else if (keyword === "一中" || keyword === "一中街" || keyword === "一中商圈") {
+        keyword = "台中一中街商圈"; 
+    } else if (keyword.includes("五禾堂")) {
+        keyword = "台中市太平區五禾堂中醫診所"; 
+    } else if (keyword.includes("東勢林場")) {
+        keyword = "東勢林場";
+    } else if (keyword.includes("柳川") && (keyword.includes("水岸") || keyword.includes("步道"))) {
+        keyword = "台中市 柳川西路三段";
+    } else if (lowerKeyword.includes("soga") || keyword.includes("太平洋百貨")) {
+        if (keyword.includes("豐原")) {
+            keyword = "豐原太平洋SOGO百貨";
+        } else {
+            keyword = "太平洋SOGO百貨"; 
+        }
+    } else if (keyword.includes("廣三") && lowerKeyword.includes("sogo")) {
+        keyword = "廣三SOGO百貨";
+    } else if (keyword.includes("綠美圖")) {
+        keyword = "臺中綠美圖"; 
+    } else if (keyword.includes("科博館")) {
+        keyword = "國立自然科學博物館";
+    } else if (keyword.includes("中友")) {
+        keyword = "中友百貨";
+    } else if (keyword.includes("馬卡龍")) {
+        keyword = "馬卡龍公園";
+    } else if (keyword.includes("LaLaport") || keyword.includes("lalaport") || keyword.includes("三井")) {
+        keyword = "LaLaport 台中";
+    } else if (keyword.includes("武陵")) {
+        keyword = "武陵農場";
+    }
+
+    var searchUrlName = keyword;
+    if (!searchUrlName.includes("台中") && !searchUrlName.includes("臺中") && !searchUrlName.includes("太平")) {
+        searchUrlName = "台中市 " + searchUrlName;
+    }
+
+    if (searchInput) searchInput.value = originalKeyword;
+    if (statusEl) statusEl.innerText = "🔍 正在精確定位「" + keyword + "」的經緯度座標...";
+
     try {
-        var res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent("台中市 " + keyword) + "&limit=1");
+        var res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(searchUrlName) + "&accept-language=zh-TW&limit=1");
         var data = await res.json();
+
+        if (!data || data.length === 0) {
+            if (statusEl) statusEl.innerText = "🔄 正在擴大深度搜尋「台中 " + originalKeyword + "」的街道位置...";
+            res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent("台中市 " + originalKeyword) + "&accept-language=zh-TW&limit=1");
+            data = await res.json();
+        }
+
         if (data && data.length > 0) {
-            await callWorkerAPI(parseFloat(data[0].lat), parseFloat(data[0].lon), keyword, includeRoad);
-        } else { toggleLoading(false, "❌ 找不到該位置。"); }
-    } catch (e) { toggleLoading(false, "❌ 定位引擎失去回應。"); }
+            var targetLat = parseFloat(data[0].lat);
+            var targetLon = parseFloat(data[0].lon);
+            var displayName = data[0].display_name.split(',')[0]; 
+
+            if (displayName.length > 20) { displayName = originalKeyword; }
+            if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
+
+            
+            // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
+            await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 3000);
+        } else {
+            if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + originalKeyword + "」的位置，請嘗試改輸入周邊的道路名稱（如：三民路三段）。";
+        }
+    } catch (error) {
+        console.error("搜尋定位失敗:", error);
+        if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
+    }
+}
+// 這裡就是最乾淨的外層空間！請把 startNavigation 函數大方地貼在這裡 👇
+
+function startNavigation(lat, lon) {
+    var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
+    if (isIOS) {
+        window.open("maps://maps.apple.com/?daddr=" + lat + "," + lon + "&dirflg=d", '_blank');
+    } else {
+        window.open("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lon + "&travelmode=driving", '_blank');
+    }
 }
 
-// 呼叫全新的高效 Worker API
-async function callWorkerAPI(targetLat, targetLon, locationName, includeRoad) {
+
+    
+async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
+    // 💡 需求 1: 確保搜尋限制完全鎖定在 3 公里內
+    if (!customRadius) customRadius = 3000;
+    var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
+    var showRoadCheckbox = document.getElementById('show-road-parking');
+    var searchInput = document.getElementById('search-input');
+    
+    var includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
+    var keywordText = searchInput ? searchInput.value.trim() : "";
+
     try {
-        // 🚀 注意：請將下方的網址換成你自己的 Worker 網址
-        var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=3000&includeRoad=" + includeRoad;
-        var response = await fetch(workerUrl);
-        var validSpots = await response.json();
+        var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
+        var response = await fetch(workerUrl); 
+        if (!response.ok) throw new Error("Worker 連線失敗");
+        
+        var allTaichungParkings = await response.json();
 
-        listEl.innerHTML = "";
-        if (markerGroup) markerGroup.clearLayers();
+        if (listEl) {
+            listEl.innerHTML = ""; 
+            
+            if (Array.isArray(allTaichungParkings) && allTaichungParkings.length > 0) {
+                var validSpots = []; 
 
-        if (Array.isArray(validSpots) && validSpots.length > 0) {
-            if (map) {
-                map.setView([targetLat, targetLon], 14);
-                L.circleMarker([targetLat, targetLon], { radius: 10, fillColor: "#2563eb", color: "#fff", fillOpacity: 0.9 }).addTo(markerGroup).bindPopup("<b>🎯 搜尋中心：</b>" + locationName).openPopup();
-                // 註冊地圖彈窗打開的事件監聽器
-                map.on('popupopen', onPopupOpen);
-            }
+                allTaichungParkings.forEach(function(park) {
+                    // 正確映射舊版與新版後台可能產生的所有座標欄位名稱
+                    var pLat = parseFloat(park.Y || park.lat || park.py || 0);
+                    var pLon = parseFloat(park.X || park.lon || park.px || 0);
 
-            validSpots.forEach(function(spot) {
-                var infoUrl = spot.id ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.id : "#";
-                var badgeColor = spot.available > 10 ? "#10b981" : (spot.available > 0 ? "#f59e0b" : "#ef4444");
-                var lightText = spot.available > 10 ? "充足" : (spot.available > 0 ? "緊張" : "滿位");
+                    if (pLat && pLon) {
+                        var R = 6371000; 
+                        var phi1 = targetLat * Math.PI / 180;
+                        var phi2 = pLat * Math.PI / 180;
+                        var deltaPhi = (pLat - targetLat) * Math.PI / 180;
+                        var deltaLambda = (pLon - targetLon) * Math.PI / 180;
 
-                // 建立卡片 HTML (注意：此時 iframe 容器是全空的！)
-                var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + badgeColor + '; margin-bottom: 12px; padding: 12px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">' +
-                    '<h4 style="margin:0 0 5px 0; font-size:1.1em; color:#111827;">' + spot.name + '</h4>' +
-                    '<p style="color: #6b7280; font-size: 0.85em; margin: 3px 0;">📍 ' + spot.address + '</p>' +
-                    '<p style="margin: 3px 0; font-size: 0.85em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
-                    '<p style="margin: 3px 0; font-size: 0.85em;">📏 距離：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
+                        var a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                                Math.cos(phi1) * Math.cos(phi2) *
+                                Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        var distance = R * c; 
+
+                        // 💡 需求 1: 超過 3 公里 (3000公尺) 絕對阻斷不顯示
+                        if (distance <= customRadius) {
+                            var name = park.PARK_NAME || park.name || "未知停車場";
+                            var address = park.ADDRESS || park.address || "台中市區域";
+                            var total = park.TOTAL_CAR !== undefined ? park.TOTAL_CAR : (park.total || 0);
+                            var available = park.AVAILABLE_CAR !== undefined ? park.AVAILABLE_CAR : (park.available || 0);
+                            var fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
+                            var parkingId = park.id || park.ID || ""; 
+
+                            // 💡 需求 3: 如果使用者輸入了「附近的停車格/車位」，強制過濾卡片清單中所有場內停車場，只留「🚗 路邊」
+                            if ((keywordText.includes("附近的停車格") || keywordText.includes("附近的停車位")) && !name.includes("🚗")) {
+                                return; // 直接跳過這筆場內不加入
+                            }
+
+                            // ⚡️ 終極修復：秒開手機 Google Maps 直接導航的標準 Universal Link 格式
+var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
+                            
+                            // 💡 需求 2: 即時四色燈號邏輯修正 (B: 未知 / G: 充足 / Y: 緊張 / R: 0)
+                            var badgeColor = "#9ca3af"; // 預設灰 (B: 未知)
+                            var lightText = "未知";
+                            
+                            if (available > 10) {
+                                badgeColor = "#10b981"; // 綠色
+                                lightText = "充足";
+                            } else if (available > 0) {
+                                badgeColor = "#f59e0b"; // 黃色
+                                lightText = "緊張";
+                            } else if (available === 0 && total > 0) {
+                                badgeColor = "#ef4444"; // 紅色
+                                lightText = "滿位 (0)";
+                            }
+
+                            validSpots.push({
+                                name: name,
+                                address: address,
+                                total: total,
+                                available: available,
+                                fare: fare,
+                                parkingId: parkingId,
+                                distance: distance,
+                                googleNavigationUrl: googleNavigationUrl,
+                                badgeColor: badgeColor,
+                                lightText: lightText
+                            });
+                        }
+                    }
+                });
+
+// 精密排序
+                validSpots.sort(function(a, b) { return a.distance - b.distance; });
+
+                // 🌟 【完美修復版】迴圈渲染卡片開始 🌟
+                validSpots.forEach(function(spot) {
                     
-                    // 空容器，等待被點擊
-                    (spot.id ? '<div id="iframe-container-' + spot.id + '" class="detail-iframe-container hidden"></div>' : '') +
+                    // 從原本算好的導航網址中，精確把緯度與經度切出來餵給 startNavigation 函數
+                    var latLonArray = spot.googleNavigationUrl.split('destination=')[1].split('&')[0].split(',');
+                    var sLat = latLonArray[0];
+                    var sLon = latLonArray[1];
 
-                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top: 8px; border-top: 1px dashed #eee; font-size:0.85em;">' +
-                        '<div>剩餘: <span style="color:' + badgeColor + '; font-weight:bold;">' + spot.available + ' (' + lightText + ')</span></div>' +
-                        '<div style="display:flex; gap: 4px;">';
+                    var infoUrl = spot.parkingId ? "https://e-traffic.taichung.gov.tw/ATIS_TCC/Device/FramePage?type=parking&id=" + spot.parkingId : "#";
+
+                    var cardHtml = '<div class="parking-card" style="border-left: 5px solid ' + spot.badgeColor + '; margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left;">' +
+                        '<h3 style="margin-top:0; font-size:1.15em; font-weight:bold; color:#1f2937;">' + spot.name + '</h3>' +
+                        '<p style="color: #666; font-size: 0.9em; margin: 5px 0;">📍 ' + spot.address + '</p>' +
+                        '<p style="margin: 5px 0; font-size: 0.9em; color:#4b5563;">💰 ' + spot.fare + '</p>' +
+                        '<p style="margin: 5px 0; font-size: 0.9em;">📏 距離目標：<span style="color:#2563eb; font-weight:bold;">' + (spot.distance < 1000 ? Math.round(spot.distance) + ' 公尺' : (spot.distance / 1000).toFixed(1) + ' 公里') + '</span></p>' +
+                        '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
+                            '<div style="font-size: 0.9em; color:#1f2937;">總車位: ' + spot.total + ' | <strong>即時狀態: <span style="color:' + spot.badgeColor + '; font-weight:bold;">' + spot.lightText + ' (剩餘:' + spot.available + ')</span></strong></div>' +
+                            '<div style="display:flex; gap: 6px; align-items: center;">';
+                    
+                    if (spot.parkingId) {
+                        cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
+                    }
+                    
+                    // ✨ 綁定 onclick，將剛才切出來的正確 lat, lon 傳入自適應導航分流函數
+                    cardHtml += '<button onclick="startNavigation(' + sLat + ',' + sLon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+
+                    listEl.innerHTML += cardHtml;
+                });
+                // 🌟 【完美修復版】迴圈渲染卡片結束 🌟
                 
-                if (spot.id) {
-                    cardHtml += '<button id="detail-btn-' + spot.id + '" onclick="toggleCardDetails(\'' + spot.id + '\', \'' + infoUrl + '\')" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:4px 8px; border-radius:4px; font-weight:bold; cursor:pointer;"><i class="fa-solid fa-circle-info"></i> 詳情</button>';
+                if (statusEl) {
+                    if (validSpots.length > 0) {
+                        statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 3 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
+                    } else {
+                        statusEl.innerText = "❌ 「" + locationName + "」方圓 3 公里內查無符合條件的即時車位。";
+                    }
                 }
-                cardHtml += '<button onclick="startNavigation(' + spot.lat + ',' + spot.lon + ')" style="background:' + badgeColor + '; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-location-arrow"></i> 導航</button>' +
-                        '</div>' + '</div>' + '</div>';
-
-                listEl.innerHTML += cardHtml;
-
-                // 地圖插旗
-                if (map) {
-                    var mapMarker = L.circleMarker([spot.lat, spot.lon], { radius: 8, fillColor: badgeColor, color: "#fff", weight: 1.5, fillOpacity: 0.85 }).addTo(markerGroup);
-                    
-                    var popupContent = `
-                        <div style="font-family:sans-serif; width:260px; font-size:13px;">
-                            <b style="font-size:14px; color:#111827; display:block;">${spot.name}</b>
-                            <div style="margin:4px 0;">🟢 剩餘車位：<span style="color:${badgeColor}; font-weight:bold;">${spot.available}</span></div>
-                            <!-- 空容器，等打開彈窗時才載入 -->
-                            <div id="map-iframe-${spot.id || ''}"></div>
-                            <button onclick="startNavigation(${spot.lat}, ${spot.lon})" style="background:${badgeColor}; color:white; border:none; padding:8px; border-radius:6px; width:100%; margin-top:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-location-arrow"></i> 導航</button>
-                        </div>
-                    `;
-                    // 把 ID 綁定在 popup 物件的 options 裡
-                    mapMarker.bindPopup(popupContent, { maxWidth: 300, parkingId: spot.id });
-                }
-            });
-            toggleLoading(false, "🟢 雷達已全速啟動！尋獲 " + validSpots.length + " 個即時車位！");
-        } else { toggleLoading(false, "❌ 範圍內無車位。"); }
-    } catch (e) { toggleLoading(false, "❌ 連線失敗"); }
+            } else {
+                if (statusEl) statusEl.innerText = "❌ 「" + locationName + "」方圓 3 公里內查無即時停車場。";
+            }
+        }
+    } catch (error) {
+        console.error("雷達撈取失敗:", error);
+        if (statusEl) statusEl.innerText = "❌ 無法取得即時車位資料，請檢查雲端通道連線。";
+    }
 }
 </script>
-</body>
-</html>
