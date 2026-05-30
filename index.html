@@ -167,9 +167,9 @@ async function doAdvancedSearch() {
                 async function(position) {
                     var myLat = position.coords.latitude;
                     var myLon = position.coords.longitude;
-                    if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 3 公里內的即時車位...";
+                    if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 2 公里內的即時車位...";
                     // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
-                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 3000);
+                    await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", 2000);
                 },
                 function(error) {
                     console.error("GPS 定位失敗:", error);
@@ -247,7 +247,7 @@ async function doAdvancedSearch() {
 
             
             // 💡 需求 1: 固定搜尋半徑 3000 公尺 (3公里)
-            await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 3000);
+            await fetchLiveTrafficAPI(targetLat, targetLon, displayName, 2000);
         } else {
             if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + originalKeyword + "」的位置，請嘗試改輸入周邊的道路名稱（如：三民路三段）。";
         }
@@ -270,8 +270,8 @@ function startNavigation(lat, lon) {
 
     
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
-    // 💡 需求 1: 確保搜尋限制完全鎖定在 3 公里內
-    if (!customRadius) customRadius = 3000;
+    // 💡 需求 1: 確保搜尋限制完全鎖定在 2 公里內
+    if (!customRadius) customRadius = 2000;
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
     var showRoadCheckbox = document.getElementById('show-road-parking');
@@ -397,13 +397,13 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                 
                 if (statusEl) {
                     if (validSpots.length > 0) {
-                        statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 3 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
+                        statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 2 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
                     } else {
-                        statusEl.innerText = "❌ 「" + locationName + "」方圓 3 公里內查無符合條件的即時車位。";
+                        statusEl.innerText = "❌ 「" + locationName + "」方圓 2 公里內查無符合條件的即時車位。";
                     }
                 }
             } else {
-                if (statusEl) statusEl.innerText = "❌ 「" + locationName + "」方圓 3 公里內查無即時停車場。";
+                if (statusEl) statusEl.innerText = "❌ 「" + locationName + "」方圓 2 公里內查無即時停車場。";
             }
         }
     } catch (error) {
