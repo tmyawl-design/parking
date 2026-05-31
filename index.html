@@ -150,7 +150,15 @@ function toggleVoiceSearch() {
         recognition.start();
     }
 }
-
+// 🍏 3. Loading 動畫切換
+function toggleLoading(show, message) {
+    var spinner = document.getElementById('loading-spinner');
+    var statusEl = document.getElementById('status-text');
+    if (spinner) {
+        if (show) spinner.classList.remove('hidden'); else spinner.classList.add('hidden');
+    }
+    if (statusEl && message) statusEl.innerText = message;
+}
 async function doAdvancedSearch() {
     var searchInput = document.getElementById('search-input');
     var statusEl = document.getElementById('status-text');
