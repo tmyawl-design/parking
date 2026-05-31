@@ -305,7 +305,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                 var validSpots = [];
                 allTaichungParkings.forEach(function(park) {
 
-                allTaichungParkings.forEach(function(park) {
                     // 正確映射舊版與新版後台可能產生的所有座標欄位名稱
                     var pLat = parseFloat(park.Y || park.lat || park.py || 0);
                     var pLon = parseFloat(park.X || park.lon || park.px || 0);
