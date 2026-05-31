@@ -316,7 +316,7 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
     var keywordText = searchInput ? searchInput.value.trim() : "";
 
     try {
-        var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
+        var workerUrl = "https://e-traffictaichung.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
         var response = await fetch(workerUrl);
         if (!response.ok) throw new Error("Worker 連線失敗");
         var allTaichungParkings = await response.json();
