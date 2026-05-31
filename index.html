@@ -162,7 +162,7 @@ async function doAdvancedSearch() {
 
     // 判斷目前的搜尋半徑 (有勾選就 3000，沒勾選就預設 1500)
     var currentRadius = (expandRadiusCheckbox && expandRadiusCheckbox.checked) ? 3000 : 1500;
-    var radiusText = currentRadius === 3000 ? "3" : "2";
+    var radiusText = currentRadius === 3000 ? "3" : "1.5";
 
     // 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
     if (keyword.includes("附近的停車格") || keyword.includes("附近的停車位")) {
