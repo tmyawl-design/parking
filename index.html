@@ -160,8 +160,8 @@ async function doAdvancedSearch() {
     var keyword = searchInput ? searchInput.value.trim() : "";
     if (!keyword) { alert("請輸入搜尋地點！"); return; }
 
-    // 判斷目前的搜尋半徑 (有勾選就 3000，沒勾選就預設 2000)
-    var currentRadius = (expandRadiusCheckbox && expandRadiusCheckbox.checked) ? 3000 : 2000;
+    // 判斷目前的搜尋半徑 (有勾選就 3000，沒勾選就預設 1500)
+    var currentRadius = (expandRadiusCheckbox && expandRadiusCheckbox.checked) ? 3000 : 1500;
     var radiusText = currentRadius === 3000 ? "3" : "2";
 
     // 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
@@ -274,7 +274,7 @@ function startNavigation(lat, lon) {
 }
 
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
-    if (!customRadius) customRadius = 2000; 
+    if (!customRadius) customRadius = 1500; 
     var displayKm = (customRadius / 1000).toFixed(0); 
 
     var statusEl = document.getElementById('status-text');
