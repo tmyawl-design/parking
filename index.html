@@ -43,20 +43,21 @@
             </div>
         </div>
         
-<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-    <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
-        <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
-        <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
-    </label>
-</div>
+        <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
+                <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
+            </label>
+        </div>
 
-<!-- 💡 新增：擴大至 3 公里的勾選區 -->
-<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-    <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
-        <input type="checkbox" id="expand-radius-3km" style="width: 16px; height: 16px; cursor: pointer;">
-        <span>🌐 找不到時？擴大雷達搜尋至 3 公里 (預設為 2 公里)</span>
-    </label>
-</div>
+        <!-- 💡 擴大至 3 公里的勾選區 -->
+        <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="expand-radius-3km" style="width: 16px; height: 16px; cursor: pointer;">
+                <span>🌐 找不到時？擴大雷達搜尋至 3 公里 (預設為 2 公里)</span>
+            </label>
+        </div>
+
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
             <p id="status-text" class="text-gray-600 font-medium">請輸入想去的台中景點（如：一中街、LaLaport）或按下方語音開始搜尋...</p>
         </div>
@@ -154,17 +155,16 @@ async function doAdvancedSearch() {
     var searchInput = document.getElementById('search-input');
     var statusEl = document.getElementById('status-text');
     var showRoadCheckbox = document.getElementById('show-road-parking');
-    // 💡 1. 取得新勾選框的 DOM
     var expandRadiusCheckbox = document.getElementById('expand-radius-3km'); 
     
     var keyword = searchInput ? searchInput.value.trim() : "";
     if (!keyword) { alert("請輸入搜尋地點！"); return; }
 
-    // 💡 2. 判斷目前的搜尋半徑 (有勾選就 3000，沒勾選就預設 2000)
+    // 判斷目前的搜尋半徑 (有勾選就 3000，沒勾選就預設 2000)
     var currentRadius = (expandRadiusCheckbox && expandRadiusCheckbox.checked) ? 3000 : 2000;
     var radiusText = currentRadius === 3000 ? "3" : "2";
 
-    // 💡 需求 3: 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
+    // 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
     if (keyword.includes("附近的停車格") || keyword.includes("附近的停車位")) {
         if (showRoadCheckbox) showRoadCheckbox.checked = true;
     }
@@ -177,9 +177,7 @@ async function doAdvancedSearch() {
                 async function(position) {
                     var myLat = position.coords.latitude;
                     var myLon = position.coords.longitude;
-                    // 💡 修正提示文字，改成帶入 radiusText
                     if (statusEl) statusEl.innerText = "🎯 GPS 定位成功！正在抓取您周邊 " + radiusText + " 公里內的即時車位...";
-                    // 💡 修正：確實將算好的 currentRadius 動態代入函數中，不要寫死 2000
                     await fetchLiveTrafficAPI(myLat, myLon, "您的目前位置", currentRadius);
                 },
                 function(error) {
@@ -256,7 +254,6 @@ async function doAdvancedSearch() {
             if (displayName.length > 20) { displayName = originalKeyword; }
             if (statusEl) statusEl.innerText = "🎯 已成功定位到「" + displayName + "」，正在抓取周邊車位...";
 
-            // 💡 修正：打字搜尋也要同步動態傳入 currentRadius 變數，而不是寫死 2000
             await fetchLiveTrafficAPI(targetLat, targetLon, displayName, currentRadius);
         } else {
             if (statusEl) statusEl.innerText = "❌ 地圖找不到「" + originalKeyword + "」的位置，請嘗試改輸入周邊的道路名稱（如：三民路三段）。";
@@ -265,8 +262,7 @@ async function doAdvancedSearch() {
         console.error("搜尋定位失敗:", error);
         if (statusEl) statusEl.innerText = "❌ 定位引擎暫時失去連線，請稍後再試。";
     }
-} // 完美的結尾花括號在這邊，這下 return 不會再跑出去了！
-// 這裡就是最乾淨的外層空間！請把 startNavigation 函數大方地貼在這裡 👇
+}
 
 function startNavigation(lat, lon) {
     var isIOS = /(iPhone|iPad|iPod)/i.test(navigator.userAgent);
@@ -277,12 +273,9 @@ function startNavigation(lat, lon) {
     }
 }
 
-
-    
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
-    // 💡 修改：確實使用傳入的半徑，若完全沒帶才預設 2000
     if (!customRadius) customRadius = 2000; 
-    var displayKm = (customRadius / 1000).toFixed(0); // 算出用來顯示的公里字串 (2 或 3)
+    var displayKm = (customRadius / 1000).toFixed(0); 
 
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
@@ -292,7 +285,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
     var keywordText = searchInput ? searchInput.value.trim() : "";
 
     try {
-        // 這裡會正確把 radius=2000 或 radius=3000 帶給後端 Worker
         var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
         var response = await fetch(workerUrl);
         if (!response.ok) throw new Error("Worker 連線失敗");
@@ -304,7 +296,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                 var validSpots = [];
                 allTaichungParkings.forEach(function(park) {
 
-                    // 正確映射舊版與新版後台可能產生的所有座標欄位名稱
                     var pLat = parseFloat(park.Y || park.lat || park.py || 0);
                     var pLon = parseFloat(park.X || park.lon || park.px || 0);
 
@@ -321,7 +312,6 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                         var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                         var distance = R * c; 
 
-                        // 💡 需求 1: 超過 3 公里 (3000公尺) 絕對阻斷不顯示
                         if (distance <= customRadius) {
                             var name = park.PARK_NAME || park.name || "未知停車場";
                             var address = park.ADDRESS || park.address || "台中市區域";
@@ -330,26 +320,23 @@ async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRad
                             var fare = park.PAY_DESC || park.fare_desc || "費率依現場公告";
                             var parkingId = park.id || park.ID || ""; 
 
-                            // 💡 需求 3: 如果使用者輸入了「附近的停車格/車位」，強制過濾卡片清單中所有場內停車場，只留「🚗 路邊」
                             if ((keywordText.includes("附近的停車格") || keywordText.includes("附近的停車位")) && !name.includes("🚗")) {
-                                return; // 直接跳過這筆場內不加入
+                                return; 
                             }
 
-                            // ⚡️ 終極修復：秒開手機 Google Maps 直接導航的標準 Universal Link 格式
-var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
+                            var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" + pLat + "," + pLon + "&travelmode=driving";
                             
-                            // 💡 需求 2: 即時四色燈號邏輯修正 (B: 未知 / G: 充足 / Y: 緊張 / R: 0)
-                            var badgeColor = "#9ca3af"; // 預設灰 (B: 未知)
+                            var badgeColor = "#9ca3af"; 
                             var lightText = "未知";
                             
                             if (available > 10) {
-                                badgeColor = "#10b981"; // 綠色
+                                badgeColor = "#10b981"; 
                                 lightText = "充足";
                             } else if (available > 0) {
-                                badgeColor = "#f59e0b"; // 黃色
+                                badgeColor = "#f59e0b"; 
                                 lightText = "緊張";
                             } else if (available === 0 && total > 0) {
-                                badgeColor = "#ef4444"; // 紅色
+                                badgeColor = "#ef4444"; 
                                 lightText = "滿位 (0)";
                             }
 
@@ -369,13 +356,9 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                     }
                 });
 
-// 精密排序
                 validSpots.sort(function(a, b) { return a.distance - b.distance; });
 
-                // 🌟 【完美修復版】迴圈渲染卡片開始 🌟
                 validSpots.forEach(function(spot) {
-                    
-                    // 從原本算好的導航網址中，精確把緯度與經度切出來餵給 startNavigation 函數
                     var latLonArray = spot.googleNavigationUrl.split('destination=')[1].split('&')[0].split(',');
                     var sLat = latLonArray[0];
                     var sLon = latLonArray[1];
@@ -395,7 +378,6 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
                         cardHtml += '<a href="' + infoUrl + '" target="_blank" style="display:inline-block; text-decoration:none; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.85em; font-weight:bold;">💰 收費詳情</a>';
                     }
                     
-                    // ✨ 綁定 onclick，將剛才切出來的正確 lat, lon 傳入自適應導航分流函數
                     cardHtml += '<button onclick="startNavigation(' + sLat + ',' + sLon + ')" style="display:inline-block; text-decoration:none; background:' + spot.badgeColor + '; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85em; text-align:center;">導航</button>' +
                             '</div>' +
                         '</div>' +
@@ -403,7 +385,7 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
 
                     listEl.innerHTML += cardHtml;
                 });
-// 💡 修改：動態將原本寫死的「2公里」改成變數 displayKm
+
                 if (statusEl) {
                     if (validSpots.length > 0) {
                         statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 " + displayKm + " 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
