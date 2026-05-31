@@ -43,13 +43,20 @@
             </div>
         </div>
         
-        <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
-                <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
-                <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
-            </label>
-        </div>
+<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+    <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+        <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
+        <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
+    </label>
+</div>
 
+<!-- 💡 新增：擴大至 3 公里的勾選區 -->
+<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+    <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+        <input type="checkbox" id="expand-radius-3km" style="width: 16px; height: 16px; cursor: pointer;">
+        <span>🌐 找不到時？擴大雷達搜尋至 3 公里 (預設為 2 公里)</span>
+    </label>
+</div>
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
             <p id="status-text" class="text-gray-600 font-medium">請輸入想去的台中景點（如：一中街、LaLaport）或按下方語音開始搜尋...</p>
         </div>
@@ -147,11 +154,15 @@ async function doAdvancedSearch() {
     var searchInput = document.getElementById('search-input');
     var statusEl = document.getElementById('status-text');
     var showRoadCheckbox = document.getElementById('show-road-parking');
+    // 💡 1. 取得新勾選框的 DOM
+    var expandRadiusCheckbox = document.getElementById('expand-radius-3km'); 
     
     var keyword = searchInput ? searchInput.value.trim() : "";
-    if (!keyword) {
-        alert("請輸入搜尋地點！");
-        return;
+    if (!keyword) { alert("請輸入搜尋地點！"); return; }
+
+    // 💡 2. 判斷目前的搜尋半徑 (有勾選就 3000，沒勾選就預設 2000)
+    var currentRadius = (expandRadiusCheckbox && expandRadiusCheckbox.checked) ? 3000 : 2000;
+    var radiusText = currentRadius === 3000 ? "3" : "2";
     }
 
     // 💡 需求 3: 如果使用者輸入包含「附近的停車格」或「附近的停車位」，打勾強制勾起，只看路邊格
@@ -270,28 +281,29 @@ function startNavigation(lat, lon) {
 
     
 async function fetchLiveTrafficAPI(targetLat, targetLon, locationName, customRadius) {
-    // 💡 需求 1: 確保搜尋限制完全鎖定在 2 公里內
-    if (!customRadius) customRadius = 2000;
+    // 💡 修改：確實使用傳入的半徑，若完全沒帶才預設 2000
+    if (!customRadius) customRadius = 2000; 
+    var displayKm = (customRadius / 1000).toFixed(0); // 算出用來顯示的公里字串 (2 或 3)
+
     var statusEl = document.getElementById('status-text');
     var listEl = document.getElementById('parking-list');
     var showRoadCheckbox = document.getElementById('show-road-parking');
     var searchInput = document.getElementById('search-input');
-    
     var includeRoad = showRoadCheckbox ? showRoadCheckbox.checked : false;
     var keywordText = searchInput ? searchInput.value.trim() : "";
 
     try {
+        // 這裡會正確把 radius=2000 或 radius=3000 帶給後端 Worker
         var workerUrl = "https://tdx-proxy.tmya-w-l.workers.dev/?lat=" + targetLat + "&lon=" + targetLon + "&radius=" + customRadius + "&includeRoad=" + includeRoad;
-        var response = await fetch(workerUrl); 
+        var response = await fetch(workerUrl);
         if (!response.ok) throw new Error("Worker 連線失敗");
-        
         var allTaichungParkings = await response.json();
 
         if (listEl) {
-            listEl.innerHTML = ""; 
-            
+            listEl.innerHTML = "";
             if (Array.isArray(allTaichungParkings) && allTaichungParkings.length > 0) {
-                var validSpots = []; 
+                var validSpots = [];
+                allTaichungParkings.forEach(function(park) {
 
                 allTaichungParkings.forEach(function(park) {
                     // 正確映射舊版與新版後台可能產生的所有座標欄位名稱
@@ -393,17 +405,16 @@ var googleNavigationUrl = "https://www.google.com/maps/dir/?api=1&destination=" 
 
                     listEl.innerHTML += cardHtml;
                 });
-                // 🌟 【完美修復版】迴圈渲染卡片結束 🌟
-                
+// 💡 修改：動態將原本寫死的「2公里」改成變數 displayKm
                 if (statusEl) {
                     if (validSpots.length > 0) {
-                        statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 2 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
+                        statusEl.innerText = "🟢 成功！雷達已搜出「" + locationName + "」周邊 " + displayKm + " 公里內 " + validSpots.length + " 個即時車位（已由近到遠排序）！";
                     } else {
-                        statusEl.innerText = "❌ 「" + locationName + "」方圓 2 公里內查無符合條件的即時車位。";
+                        statusEl.innerText = "❌ 「" + locationName + "」方圓 " + displayKm + " 公里內查無符合條件的即時車位。";
                     }
                 }
             } else {
-                if (statusEl) statusEl.innerText = "❌ 「" + locationName + "」方圓 2 公里內查無即時停車場。";
+                if (statusEl) statusEl.innerText = "❌ 「" + locationName + "」方圓 " + displayKm + " 公里內查無即時停車場。";
             }
         }
     } catch (error) {
