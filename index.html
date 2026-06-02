@@ -128,8 +128,9 @@ const LANDMARKS = {
 "一中": { lat: 24.1492, lon: 120.6841 },
 };
 
-async function doAdvancedSearch() {
-  const keyword = document.getElementById("search-input").value.trim();
+async function doVoiceSearch(keyword) {
+  console.log("doVoiceSearch 被執行，keyword =", keyword, "mode =", currentSearchMode);
+
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
   const spinner = document.getElementById("loading-spinner");
@@ -541,25 +542,32 @@ function toggleVoiceSearch() {
     statusText.textContent = "正在聆聽語音指令...";
   };
 
-  recognition.onresult = async (event) => {
-    const transcript = event.results[0][0].transcript.trim();
+ recognition.onresult = (event) => {
+  const transcript = event.results[0][0].transcript.trim();
 
-    console.log("語音辨識結果：", transcript);
+  console.log("語音辨識結果：", transcript);
 
-    document.getElementById("search-input").value = transcript;
+  const parsed = parseVoiceCommand(transcript);
 
-    const parsed = parseVoiceCommand(transcript);
+  currentSearchMode = parsed.mode;
+  currentRadiusKm = 1.5;
+  lastSearchKeyword = parsed.keyword;
 
-    currentSearchMode = parsed.mode;
-    currentRadiusKm = 1.5;
-    lastSearchKeyword = parsed.keyword;
+  const input = document.getElementById("search-input");
+  input.value = parsed.keyword;
 
-    document.getElementById("search-input").value = parsed.keyword;
+  const modeText =
+    currentSearchMode === "onstreet"
+      ? "路邊停車位"
+      : "停車場";
 
-    statusText.textContent = `語音辨識：${transcript}`;
+  statusText.textContent = `語音辨識：${transcript}，正在搜尋附近${modeText}...`;
 
-    await doVoiceSearch(parsed.keyword);
-  };
+  // 稍微延遲，讓畫面先更新，再執行搜尋
+  setTimeout(() => {
+    doVoiceSearch(parsed.keyword);
+  }, 150);
+};
 
   recognition.onerror = (event) => {
   console.error("語音辨識錯誤：", event.error);
