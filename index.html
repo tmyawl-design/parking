@@ -65,7 +65,7 @@
         </div>
 
 <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-  <span>📍 目前僅顯示搜尋地點 1.5 公里內停車場，並依距離由近到遠排序</span>
+<span>📍 預設顯示 1.5 公里內停車場；若查無資料，可一鍵擴大至 3 公里</span>
 </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
@@ -98,7 +98,12 @@
     </footer>
     
 <script>
+let currentRadiusKm = 1.5;
+let lastSearchKeyword = "";
+
 const LANDMARKS = {
+  "逢甲夜市": { lat: 24.1790, lon: 120.6466 },
+  "一中街": { lat: 24.1492, lon: 120.6841 },
   "逢甲夜市": { lat: 24.1790, lon: 120.6466 },
   "一中街": { lat: 24.1492, lon: 120.6841 },
   "台中車站": { lat: 24.1368, lon: 120.6850 },
@@ -113,6 +118,9 @@ const LANDMARKS = {
 
 async function doAdvancedSearch() {
   const keyword = document.getElementById("search-input").value.trim();
+    currentRadiusKm = 1.5;
+lastSearchKeyword = keyword;
+    
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
   const spinner = document.getElementById("loading-spinner");
@@ -182,11 +190,17 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
 
-const radiusKm = 1.5;
+const radiusKm = currentRadiusKm;
+const includeOnStreet = document.getElementById("show-road-parking")?.checked || false;
 
 const apiUrl =
-  `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}`;
-  const res = await fetch(apiUrl);
+  `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`;
+
+console.log("查詢地點：", keyword);
+console.log("查詢半徑：", radiusKm);
+console.log("查詢 API：", apiUrl);
+    
+    const res = await fetch(apiUrl);
   const data = await res.json();
 
   if (!res.ok) {
@@ -195,15 +209,31 @@ const apiUrl =
 
   const list = Array.isArray(data) ? data : (data.data || []);
 
-  if (!Array.isArray(list) || list.length === 0) {
-    statusText.textContent = `「${keyword}」附近 ${radiusKm} 公里內查無 TDX 停車資料`;
+if (!Array.isArray(list) || list.length === 0) {
+  statusText.textContent = `「${keyword}」附近 ${radiusKm} 公里內查無 TDX 停車資料`;
+
+  if (radiusKm < 3) {
     parkingList.innerHTML = `
-      <div class="text-center text-gray-500 py-8">
-        查無附近停車場資料，可勾選擴大搜尋或換一個地點。
+      <div class="bg-white rounded-xl p-5 shadow-sm text-center border border-gray-200">
+        <div class="text-gray-600 mb-3">
+          1.5 公里內查無停車場資料。
+        </div>
+        <button onclick="expandSearchTo3Km()"
+          class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm">
+          擴大搜尋至 3 公里
+        </button>
       </div>
     `;
-    return;
+  } else {
+    parkingList.innerHTML = `
+      <div class="text-center text-gray-500 py-8">
+        3 公里內仍查無附近停車場資料，請換一個地點搜尋。
+      </div>
+    `;
   }
+
+  return;
+}
 
   statusText.textContent =
     `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆 TDX 停車場資料`;
@@ -287,7 +317,45 @@ ${statusBadge}
     `;
   }).join("");
 }
+async function expandSearchTo3Km() {
+  const keyword = lastSearchKeyword || document.getElementById("search-input").value.trim();
+  const statusText = document.getElementById("status-text");
+  const parkingList = document.getElementById("parking-list");
+  const spinner = document.getElementById("loading-spinner");
 
+  if (!keyword) {
+    statusText.textContent = "請先輸入地點再擴大搜尋";
+    return;
+  }
+
+  currentRadiusKm = 3;
+
+  spinner.classList.remove("hidden");
+  statusText.textContent = `正在擴大搜尋「${keyword}」附近 3 公里內停車位...`;
+  parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">擴大搜尋中，請稍候...</div>`;
+
+  try {
+    const coord = await getCoordinate(keyword);
+
+    if (!coord) {
+      statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
+      parkingList.innerHTML = `<div class="text-center text-red-500 py-8">找不到地點座標</div>`;
+      return;
+    }
+
+    await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
+
+  } catch (err) {
+    statusText.textContent = "擴大搜尋失敗";
+    parkingList.innerHTML = `
+      <div class="bg-white rounded-xl p-4 shadow-sm text-red-600">
+        擴大搜尋失敗：${err.message}
+      </div>
+    `;
+  } finally {
+    spinner.classList.add("hidden");
+  }
+}
 function toggleVoiceSearch() {
   alert("語音搜尋功能尚未設定，請先使用上方文字搜尋。");
 }
