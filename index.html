@@ -106,6 +106,10 @@
 <script>
 let currentRadiusKm = 1.5;
 let lastSearchKeyword = "";
+let currentSearchMode = "offstreet"; 
+// offstreet = 只查停車場
+// onstreet = 只查路邊車格
+// mixed = 停車場 + 路邊車格
 
 const LANDMARKS = {
   "逢甲夜市": { lat: 24.1790, lon: 120.6466 },
@@ -124,29 +128,33 @@ const LANDMARKS = {
 "一中": { lat: 24.1492, lon: 120.6841 },
 };
 
-async function doAdvancedSearch() {
-  const keyword = document.getElementById("search-input").value.trim();
-    currentRadiusKm = 1.5;
-lastSearchKeyword = keyword;
-    
+async function doVoiceSearch(keyword) {
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
   const spinner = document.getElementById("loading-spinner");
 
-  if (!keyword) {
-    statusText.textContent = "請先輸入地點，例如：逢甲夜市、一中街、LaLaport";
-    return;
-  }
-
   spinner.classList.remove("hidden");
-  statusText.textContent = `正在搜尋「${keyword}」附近停車位...`;
-  parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">查詢中，請稍候...</div>`;
+
+  const modeText =
+    currentSearchMode === "onstreet"
+      ? "路邊停車位"
+      : "停車場";
+
+  statusText.textContent = `正在搜尋「${keyword}」附近的${modeText}...`;
+  parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">語音搜尋中，請稍候...</div>`;
 
   try {
-    const coord = await getCoordinate(keyword);
+    let coord;
+
+    if (keyword === "目前位置") {
+      coord = await getCurrentLocation();
+      keyword = "目前位置";
+      lastSearchKeyword = keyword;
+    } else {
+      coord = await getCoordinate(keyword);
+    }
 
     if (!coord) {
-      spinner.classList.add("hidden");
       statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
       parkingList.innerHTML = `<div class="text-center text-red-500 py-8">找不到地點座標</div>`;
       return;
@@ -155,10 +163,10 @@ lastSearchKeyword = keyword;
     await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
 
   } catch (err) {
-    statusText.textContent = "查詢失敗";
+    statusText.textContent = "語音搜尋失敗";
     parkingList.innerHTML = `
       <div class="bg-white rounded-xl p-4 shadow-sm text-red-600">
-        查詢失敗：${err.message}
+        語音搜尋失敗：${err.message}
       </div>
     `;
   } finally {
@@ -223,7 +231,11 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const parkingList = document.getElementById("parking-list");
 
 const radiusKm = currentRadiusKm;
-const includeOnStreet = document.getElementById("show-road-parking")?.checked || false;
+const includeOnStreet =
+  currentSearchMode === "onstreet" ||
+  currentSearchMode === "mixed" ||
+  document.getElementById("show-road-parking")?.checked ||
+  false;
 
 const apiUrl =
   `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`;
@@ -246,11 +258,22 @@ console.log("查詢 API：", apiUrl);
 }
 
   const list = Array.isArray(data) ? data : (data.data || []);
-    const hideFullParking = document.getElementById("hide-full-parking")?.checked || false;
+
+const hideFullParking = document.getElementById("hide-full-parking")?.checked || false;
+
+let modeFilteredList = list;
+
+if (currentSearchMode === "offstreet") {
+  modeFilteredList = list.filter(item => item.type !== "onstreet");
+}
+
+if (currentSearchMode === "onstreet") {
+  modeFilteredList = list.filter(item => item.type === "onstreet");
+}
 
 const displayList = hideFullParking
-  ? list.filter(item => Number(item.car_value) > 0)
-  : list;
+  ? modeFilteredList.filter(item => Number(item.car_value) > 0)
+  : modeFilteredList;
     
 
 if (!Array.isArray(displayList) || displayList.length === 0) {
@@ -279,10 +302,17 @@ if (!Array.isArray(displayList) || displayList.length === 0) {
   return;
 }
 
+const modeText =
+  currentSearchMode === "onstreet"
+    ? "路邊停車位"
+    : currentSearchMode === "mixed"
+      ? "停車場與路邊車格"
+      : "停車場";
+
 statusText.textContent =
   hideFullParking
-    ? `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆資料，已隱藏 0 車位後顯示 ${displayList.length} 筆`
-    : `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆 TDX 停車資料`;
+    ? `已找到「${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${modeFilteredList.length} 筆，隱藏 0 車位後顯示 ${displayList.length} 筆`
+    : `已找到「${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${displayList.length} 筆`;
 const expandButtonHtml = radiusKm < 3
   ? `
     <div class="bg-white rounded-xl p-3 shadow-sm text-center border border-gray-200 mb-3">
@@ -414,8 +444,140 @@ async function expandSearchTo3Km() {
     spinner.classList.add("hidden");
   }
 }
+let recognition = null;
+let isRecording = false;
+function parseVoiceCommand(text) {
+  let keyword = text.trim();
+  let mode = "offstreet";
+
+  // 說「停車位、路邊、車格」時，視為查路邊車格
+  if (
+    keyword.includes("路邊") ||
+    keyword.includes("停車位") ||
+    keyword.includes("車格")
+  ) {
+    mode = "onstreet";
+  }
+
+  // 說「停車場」時，視為查路外停車場
+  if (keyword.includes("停車場")) {
+    mode = "offstreet";
+  }
+
+  // 移除常見指令字，留下地點
+  keyword = keyword
+    .replaceAll("查詢", "")
+    .replaceAll("搜尋", "")
+    .replaceAll("找", "")
+    .replaceAll("附近的", "")
+    .replaceAll("附近", "")
+    .replaceAll("停車場", "")
+    .replaceAll("停車位", "")
+    .replaceAll("路邊停車位", "")
+    .replaceAll("路邊車格", "")
+    .replaceAll("車格", "")
+    .trim();
+
+  // 如果使用者只說「查詢附近的停車場」，沒有說地點，就用目前定位
+  if (!keyword) {
+    keyword = "目前位置";
+  }
+
+  return {
+    keyword,
+    mode
+  };
+}
+    function getCurrentLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("你的瀏覽器不支援定位功能"));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          lat: position.coords.latitude,
+          lon: position.coords.longitude
+        });
+      },
+      error => {
+        reject(new Error("無法取得目前位置，請確認是否允許定位權限"));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+  });
+}
 function toggleVoiceSearch() {
-  alert("語音搜尋功能尚未設定，請先使用上方文字搜尋。");
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  const micBtn = document.getElementById("mic-btn");
+  const micTip = document.getElementById("mic-tip");
+  const micIcon = document.getElementById("mic-icon");
+  const statusText = document.getElementById("status-text");
+
+  if (!SpeechRecognition) {
+    alert("你的瀏覽器不支援語音輸入。建議使用 Chrome 或 Edge。");
+    return;
+  }
+
+  if (isRecording && recognition) {
+    recognition.stop();
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "zh-TW";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isRecording = true;
+    micBtn.classList.add("recording-active");
+    micIcon.className = "fa-solid fa-stop text-2xl";
+    micTip.textContent = "聆聽中，請說出想查詢的地點...";
+    statusText.textContent = "正在聆聽語音指令...";
+  };
+
+  recognition.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+
+    console.log("語音辨識結果：", transcript);
+
+    document.getElementById("search-input").value = transcript;
+
+    const parsed = parseVoiceCommand(transcript);
+
+    currentSearchMode = parsed.mode;
+    currentRadiusKm = 1.5;
+    lastSearchKeyword = parsed.keyword;
+
+    document.getElementById("search-input").value = parsed.keyword;
+
+    statusText.textContent = `語音辨識：${transcript}`;
+
+    await doVoiceSearch(parsed.keyword);
+  };
+
+  recognition.onerror = (event) => {
+    console.error("語音辨識錯誤：", event.error);
+    statusText.textContent = "語音辨識失敗，請再試一次或改用文字輸入。";
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    micBtn.classList.remove("recording-active");
+    micIcon.className = "fa-solid fa-microphone text-2xl";
+    micTip.textContent = "按我開始語音搜尋";
+  };
+
+  recognition.start();
 }
 </script>
 </body>
