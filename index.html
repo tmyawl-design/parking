@@ -217,6 +217,12 @@ const apiUrl =
     const pay = item.pay_info || "未提供收費資訊";
     const distance = item.distanceKm ?? "?";
     const source = item.source || "TDX";
+      const type = item.type || "offstreet";
+
+const typeBadge =
+  type === "onstreet"
+    ? `<span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">🛣️ 路邊車格</span>`
+    : `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">🅿️ 停車場</span>`;
 
     const itemLat = item.lat;
     const itemLon = item.lon;
@@ -251,8 +257,9 @@ const apiUrl =
         <div class="flex justify-between items-start gap-3">
           <div class="flex-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-bold text-gray-800">${name}</h2>
-              ${statusBadge}
+<h2 class="text-lg font-bold text-gray-800">${name}</h2>
+${typeBadge}
+${statusBadge}
             </div>
             <p class="text-sm text-gray-500 mt-1">${address}</p>
           </div>
