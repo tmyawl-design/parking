@@ -64,13 +64,9 @@
             </label>
         </div>
 
-        <!-- 💡 擴大至 3 公里的勾選區 -->
-        <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
-                <input type="checkbox" id="expand-radius-3km" style="width: 16px; height: 16px; cursor: pointer;">
-                <span>🌐 找不到時？擴大雷達搜尋至 3 公里 (預設為 1.5 公里)</span>
-            </label>
-        </div>
+<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+  <span>📍 目前僅顯示搜尋地點 1.5 公里內停車場，並依距離由近到遠排序</span>
+</div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
             <p id="status-text" class="text-gray-600 font-medium">請輸入想去的台中景點（如：一中街、LaLaport）或按下方語音開始搜尋...</p>
@@ -186,8 +182,7 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
 
-  const expandRadius = document.getElementById("expand-radius-3km")?.checked;
-  const radiusKm = expandRadius ? 5 : 3;
+const radiusKm = 1.5;
 
 const apiUrl =
   `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}`;
