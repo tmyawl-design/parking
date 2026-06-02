@@ -237,8 +237,17 @@ if (!Array.isArray(list) || list.length === 0) {
 
   statusText.textContent =
     `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆 TDX 停車場資料`;
-
-  parkingList.innerHTML = list.map(item => {
+const expandButtonHtml = radiusKm < 3
+  ? `
+    <div class="bg-white rounded-xl p-3 shadow-sm text-center border border-gray-200 mb-3">
+      <button onclick="expandSearchTo3Km()"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm">
+        顯示 3 公里內更多停車場
+      </button>
+    </div>
+  `
+  : "";
+  parkingList.innerHTML = expandButtonHtml + list.map(item => {
     const name = item.name || "未命名停車場";
     const address = item.address || "未提供地址";
     const total = item.car_total ?? "未提供";
