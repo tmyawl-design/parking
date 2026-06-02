@@ -160,9 +160,33 @@ lastSearchKeyword = keyword;
 
 async function getCoordinate(keyword) {
   // 先用內建台中常用地點，速度最快
-  if (LANDMARKS[keyword]) {
-    return LANDMARKS[keyword];
-  }
+const cleanKeyword = keyword.trim();
+
+// 先完全比對
+if (LANDMARKS[cleanKeyword]) {
+  return LANDMARKS[cleanKeyword];
+}
+
+// 再做常用關鍵字模糊比對
+if (cleanKeyword.includes("中友")) {
+  return { lat: 24.1520, lon: 120.6845 };
+}
+
+if (cleanKeyword.includes("一中")) {
+  return { lat: 24.1492, lon: 120.6841 };
+}
+
+if (cleanKeyword.includes("逢甲")) {
+  return { lat: 24.1790, lon: 120.6466 };
+}
+
+if (cleanKeyword.includes("綠美圖")) {
+  return { lat: 24.1590, lon: 120.6590 };
+}
+
+if (cleanKeyword.includes("勤美") || cleanKeyword.includes("草悟道")) {
+  return { lat: 24.1510, lon: 120.6631 };
+}
 
   // 如果不是內建地點，就用 OpenStreetMap 查座標
   const url =
@@ -197,6 +221,7 @@ const apiUrl =
   `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`;
 
 console.log("查詢地點：", keyword);
+console.log("查詢座標：", lat, lon);
 console.log("查詢半徑：", radiusKm);
 console.log("查詢 API：", apiUrl);
     
