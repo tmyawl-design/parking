@@ -190,7 +190,7 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const radiusKm = expandRadius ? 5 : 3;
 
 const apiUrl =
-  `hhttps://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}`;
+  `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}`;
   const res = await fetch(apiUrl);
   const data = await res.json();
 
