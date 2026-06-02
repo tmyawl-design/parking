@@ -189,9 +189,8 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const expandRadius = document.getElementById("expand-radius-3km")?.checked;
   const radiusKm = expandRadius ? 5 : 3;
 
-  const apiUrl =
-    `https://你的-worker網址.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}`;
-
+const apiUrl =
+  `https://tdx-parking.tmyawl-design.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}`;
   const res = await fetch(apiUrl);
   const data = await res.json();
 
