@@ -169,7 +169,54 @@ async function doAdvancedSearch() {
     spinner.classList.add("hidden");
   }
 }
+async function doVoiceSearch(keyword) {
+  console.log("doVoiceSearch 被執行，keyword =", keyword, "mode =", currentSearchMode);
 
+  const statusText = document.getElementById("status-text");
+  const parkingList = document.getElementById("parking-list");
+  const spinner = document.getElementById("loading-spinner");
+
+  spinner.classList.remove("hidden");
+
+  const modeText =
+    currentSearchMode === "onstreet"
+      ? "路邊停車位"
+      : "停車場";
+
+  statusText.textContent = `正在搜尋「${keyword}」附近的${modeText}...`;
+  parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">語音搜尋中，請稍候...</div>`;
+
+  try {
+    let coord;
+
+    if (keyword === "目前位置") {
+      coord = await getCurrentLocation();
+      lastSearchKeyword = "目前位置";
+    } else {
+      coord = await getCoordinate(keyword);
+      lastSearchKeyword = keyword;
+    }
+
+    if (!coord) {
+      statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
+      parkingList.innerHTML = `<div class="text-center text-red-500 py-8">找不到地點座標</div>`;
+      return;
+    }
+
+    await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
+
+  } catch (err) {
+    statusText.textContent = "語音搜尋失敗";
+    parkingList.innerHTML = `
+      <div class="bg-white rounded-xl p-4 shadow-sm text-red-600">
+        語音搜尋失敗：${err.message}
+      </div>
+    `;
+  } finally {
+    spinner.classList.add("hidden");
+  }
+}
+    
 async function getCoordinate(keyword) {
   // 先用內建台中常用地點，速度最快
 const cleanKeyword = keyword.trim();
