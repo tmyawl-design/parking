@@ -237,8 +237,13 @@ console.log("查詢 API：", apiUrl);
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.error || `TDX 查詢失敗，狀態碼：${res.status}`);
-  }
+  console.log("後台錯誤內容：", data);
+  throw new Error(
+    data.error ||
+    data.detail ||
+    `查詢失敗，狀態碼：${res.status}`
+  );
+}
 
   const list = Array.isArray(data) ? data : (data.data || []);
     const hideFullParking = document.getElementById("hide-full-parking")?.checked || false;
