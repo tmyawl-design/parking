@@ -63,7 +63,13 @@
                 <span>🔍 包含顯示「路邊即時車格」（資料較多，載入較慢）</span>
             </label>
         </div>
-
+<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
+  <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+    <input type="checkbox" id="hide-full-parking" style="width: 16px; height: 16px; cursor: pointer;">
+    <span>🚗 隱藏 0 車位／已滿停車場</span>
+  </label>
+</div>
+        
 <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
 <span>📍 預設顯示 1.5 公里內停車場；若查無資料，可一鍵擴大至 3 公里</span>
 </div>
@@ -235,8 +241,14 @@ console.log("查詢 API：", apiUrl);
   }
 
   const list = Array.isArray(data) ? data : (data.data || []);
+    const hideFullParking = document.getElementById("hide-full-parking")?.checked || false;
 
-if (!Array.isArray(list) || list.length === 0) {
+const displayList = hideFullParking
+  ? list.filter(item => Number(item.car_value) > 0)
+  : list;
+    
+
+if (!Array.isArray(displayList) || displayList.length === 0) {
   statusText.textContent = `「${keyword}」附近 ${radiusKm} 公里內查無 TDX 停車資料`;
 
   if (radiusKm < 3) {
@@ -262,8 +274,10 @@ if (!Array.isArray(list) || list.length === 0) {
   return;
 }
 
-  statusText.textContent =
-    `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆 TDX 停車場資料`;
+statusText.textContent =
+  hideFullParking
+    ? `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆資料，已隱藏 0 車位後顯示 ${displayList.length} 筆`
+    : `已找到「${keyword}」附近 ${radiusKm} 公里內 ${list.length} 筆 TDX 停車資料`;
 const expandButtonHtml = radiusKm < 3
   ? `
     <div class="bg-white rounded-xl p-3 shadow-sm text-center border border-gray-200 mb-3">
@@ -274,7 +288,7 @@ const expandButtonHtml = radiusKm < 3
     </div>
   `
   : "";
-  parkingList.innerHTML = expandButtonHtml + list.map(item => {
+parkingList.innerHTML = expandButtonHtml + displayList.map(item => {
     const name = item.name || "未命名停車場";
     const address = item.address || "未提供地址";
     const total = item.car_total ?? "未提供";
