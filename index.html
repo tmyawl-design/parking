@@ -128,31 +128,27 @@ const LANDMARKS = {
 "一中": { lat: 24.1492, lon: 120.6841 },
 };
 
-async function doVoiceSearch(keyword) {
+async function doAdvancedSearch() {
+  const keyword = document.getElementById("search-input").value.trim();
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
   const spinner = document.getElementById("loading-spinner");
 
+  currentRadiusKm = 1.5;
+  lastSearchKeyword = keyword;
+  currentSearchMode = "offstreet";
+
+  if (!keyword) {
+    statusText.textContent = "請先輸入地點，例如：逢甲夜市、一中街、LaLaport";
+    return;
+  }
+
   spinner.classList.remove("hidden");
-
-  const modeText =
-    currentSearchMode === "onstreet"
-      ? "路邊停車位"
-      : "停車場";
-
-  statusText.textContent = `正在搜尋「${keyword}」附近的${modeText}...`;
-  parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">語音搜尋中，請稍候...</div>`;
+  statusText.textContent = `正在搜尋「${keyword}」附近停車場...`;
+  parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">查詢中，請稍候...</div>`;
 
   try {
-    let coord;
-
-    if (keyword === "目前位置") {
-      coord = await getCurrentLocation();
-      keyword = "目前位置";
-      lastSearchKeyword = keyword;
-    } else {
-      coord = await getCoordinate(keyword);
-    }
+    const coord = await getCoordinate(keyword);
 
     if (!coord) {
       statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
@@ -163,10 +159,10 @@ async function doVoiceSearch(keyword) {
     await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
 
   } catch (err) {
-    statusText.textContent = "語音搜尋失敗";
+    statusText.textContent = "查詢失敗";
     parkingList.innerHTML = `
       <div class="bg-white rounded-xl p-4 shadow-sm text-red-600">
-        語音搜尋失敗：${err.message}
+        查詢失敗：${err.message}
       </div>
     `;
   } finally {
@@ -566,9 +562,16 @@ function toggleVoiceSearch() {
   };
 
   recognition.onerror = (event) => {
-    console.error("語音辨識錯誤：", event.error);
-    statusText.textContent = "語音辨識失敗，請再試一次或改用文字輸入。";
-  };
+  console.error("語音辨識錯誤：", event.error);
+
+  if (event.error === "not-allowed") {
+    statusText.textContent = "麥克風權限被拒絕，請到網址列左側鎖頭允許麥克風，然後重新整理網頁。";
+    alert("麥克風權限被拒絕，請允許此網站使用麥克風。");
+    return;
+  }
+
+  statusText.textContent = "語音辨識失敗，請再試一次或改用文字輸入。";
+};
 
   recognition.onend = () => {
     isRecording = false;
@@ -579,6 +582,9 @@ function toggleVoiceSearch() {
 
   recognition.start();
 }
+    window.doAdvancedSearch = doAdvancedSearch;
+window.expandSearchTo3Km = expandSearchTo3Km;
+window.toggleVoiceSearch = toggleVoiceSearch;
 </script>
 </body>
 </html>
