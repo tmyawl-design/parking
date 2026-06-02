@@ -128,9 +128,8 @@ const LANDMARKS = {
 "一中": { lat: 24.1492, lon: 120.6841 },
 };
 
-async function doVoiceSearch(keyword) {
-  console.log("doVoiceSearch 被執行，keyword =", keyword, "mode =", currentSearchMode);
-
+async function doAdvancedSearch() {
+  const keyword = document.getElementById("search-input").value.trim();
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
   const spinner = document.getElementById("loading-spinner");
