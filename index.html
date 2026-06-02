@@ -490,38 +490,55 @@ async function expandSearchTo3Km() {
 let recognition = null;
 let isRecording = false;
 function parseVoiceCommand(text) {
-  let keyword = text.trim();
+  let rawText = text.trim();
+  let keyword = rawText;
   let mode = "offstreet";
 
-  // 說「停車位、路邊、車格」時，視為查路邊車格
+  // 1. 先判斷搜尋模式
+  // 說「路邊、停車位、車格」→ 查路邊車格
   if (
-    keyword.includes("路邊") ||
-    keyword.includes("停車位") ||
-    keyword.includes("車格")
+    rawText.includes("路邊") ||
+    rawText.includes("停車位") ||
+    rawText.includes("車格")
   ) {
     mode = "onstreet";
   }
 
-  // 說「停車場」時，視為查路外停車場
-  if (keyword.includes("停車場")) {
+  // 說「停車場」→ 查路外停車場
+  // 放在後面，避免「停車場」被誤判成停車位
+  if (rawText.includes("停車場")) {
     mode = "offstreet";
   }
 
-  // 移除常見指令字，留下地點
+  // 2. 移除常見指令字，留下地點
   keyword = keyword
+    .replaceAll("請幫我", "")
+    .replaceAll("幫我", "")
+    .replaceAll("我要", "")
     .replaceAll("查詢", "")
     .replaceAll("搜尋", "")
+    .replaceAll("找一下", "")
     .replaceAll("找", "")
     .replaceAll("附近的", "")
     .replaceAll("附近", "")
+    .replaceAll("周邊的", "")
+    .replaceAll("周邊", "")
+    .replaceAll("路邊停車位", "")
+    .replaceAll("路邊停車格", "")
+    .replaceAll("路邊車格", "")
+    .replaceAll("路邊", "")
     .replaceAll("停車場", "")
     .replaceAll("停車位", "")
-    .replaceAll("路邊停車位", "")
-    .replaceAll("路邊車格", "")
+    .replaceAll("停車格", "")
     .replaceAll("車格", "")
+    .replaceAll("的", "")
+    .replaceAll("。", "")
+    .replaceAll("，", "")
+    .replaceAll(",", "")
     .trim();
 
-  // 如果使用者只說「查詢附近的停車場」，沒有說地點，就用目前定位
+  // 3. 如果沒有地點，代表使用者說的是「附近」
+  // 例如：查詢附近的停車場 / 搜尋附近的停車位
   if (!keyword) {
     keyword = "目前位置";
   }
