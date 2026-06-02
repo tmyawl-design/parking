@@ -186,9 +186,8 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
 
-  const apiUrl =
-    `https://parkboss.tw/api/v1/query-parking-space-by-coordinate?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-
+ const apiUrl =
+  `https://parking-backend-jpou.onrender.com/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
   const res = await fetch(apiUrl);
   const data = await res.json();
 
