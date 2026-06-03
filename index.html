@@ -528,8 +528,7 @@ async function expandSearchTo3Km() {
     }
 
     await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
-if (includeOnStreet && city !== "Taichung") {
-  console.log("目前路邊即時車格只支援台中市，其他縣市僅顯示 TDX 停車場。");
+
 }
   } catch (err) {
     statusText.textContent = "擴大搜尋失敗";
@@ -545,77 +544,68 @@ if (includeOnStreet && city !== "Taichung") {
 let recognition = null;
 let isRecording = false;
 function parseVoiceCommand(text) {
-let detectedCity = null;
+  let rawText = text.trim();
+  let keyword = rawText;
+  let mode = "offstreet";
+  let detectedCity = null;
 
-const cityAliases = [
-  { keys: ["台北", "臺北", "台北市", "臺北市"], value: "Taipei" },
-  { keys: ["新北", "新北市"], value: "NewTaipei" },
-  { keys: ["桃園", "桃園市"], value: "Taoyuan" },
-  { keys: ["新竹市"], value: "Hsinchu" },
-  { keys: ["新竹縣"], value: "HsinchuCounty" },
-  { keys: ["苗栗", "苗栗縣"], value: "MiaoliCounty" },
-  { keys: ["台中", "臺中", "台中市", "臺中市"], value: "Taichung" },
-  { keys: ["彰化", "彰化縣"], value: "ChanghuaCounty" },
-  { keys: ["南投", "南投縣"], value: "NantouCounty" },
-  { keys: ["雲林", "雲林縣"], value: "YunlinCounty" },
-  { keys: ["嘉義市"], value: "Chiayi" },
-  { keys: ["嘉義縣"], value: "ChiayiCounty" },
-  { keys: ["台南", "臺南", "台南市", "臺南市"], value: "Tainan" },
-  { keys: ["高雄", "高雄市"], value: "Kaohsiung" },
-  { keys: ["屏東", "屏東縣"], value: "PingtungCounty" },
-  { keys: ["宜蘭", "宜蘭縣"], value: "YilanCounty" },
-  { keys: ["花蓮", "花蓮縣"], value: "HualienCounty" },
-  { keys: ["台東", "臺東", "台東縣", "臺東縣"], value: "TaitungCounty" },
-  { keys: ["基隆", "基隆市"], value: "Keelung" },
-  { keys: ["澎湖", "澎湖縣"], value: "PenghuCounty" },
-  { keys: ["金門", "金門縣"], value: "KinmenCounty" },
-  { keys: ["連江", "連江縣", "馬祖"], value: "LienchiangCounty" }
-];
+  const cityAliases = [
+    { keys: ["台北市", "臺北市", "台北", "臺北"], value: "Taipei" },
+    { keys: ["新北市", "新北"], value: "NewTaipei" },
+    { keys: ["桃園市", "桃園"], value: "Taoyuan" },
+    { keys: ["新竹市"], value: "Hsinchu" },
+    { keys: ["新竹縣"], value: "HsinchuCounty" },
+    { keys: ["苗栗縣", "苗栗"], value: "MiaoliCounty" },
+    { keys: ["台中市", "臺中市", "台中", "臺中"], value: "Taichung" },
+    { keys: ["彰化縣", "彰化"], value: "ChanghuaCounty" },
+    { keys: ["南投縣", "南投"], value: "NantouCounty" },
+    { keys: ["雲林縣", "雲林"], value: "YunlinCounty" },
+    { keys: ["嘉義市"], value: "Chiayi" },
+    { keys: ["嘉義縣"], value: "ChiayiCounty" },
+    { keys: ["台南市", "臺南市", "台南", "臺南"], value: "Tainan" },
+    { keys: ["高雄市", "高雄"], value: "Kaohsiung" },
+    { keys: ["屏東縣", "屏東"], value: "PingtungCounty" },
+    { keys: ["宜蘭縣", "宜蘭"], value: "YilanCounty" },
+    { keys: ["花蓮縣", "花蓮"], value: "HualienCounty" },
+    { keys: ["台東縣", "臺東縣", "台東", "臺東"], value: "TaitungCounty" },
+    { keys: ["基隆市", "基隆"], value: "Keelung" },
+    { keys: ["澎湖縣", "澎湖"], value: "PenghuCounty" },
+    { keys: ["金門縣", "金門"], value: "KinmenCounty" },
+    { keys: ["連江縣", "連江", "馬祖"], value: "LienchiangCounty" }
+  ];
 
-for (const city of cityAliases) {
-  const matched = city.keys.find(key => rawText.includes(key));
-  if (matched) {
-    detectedCity = city.value;
-    keyword = keyword.replaceAll(matched, "");
-    break;
+  for (const city of cityAliases) {
+    const matched = city.keys.find(key => rawText.includes(key));
+    if (matched) {
+      detectedCity = city.value;
+      keyword = keyword.replaceAll(matched, "");
+      break;
+    }
   }
-}
 
-if (detectedCity) {
-  const citySelect = document.getElementById("city-select");
-  if (citySelect) {
-    citySelect.value = detectedCity;
+  if (detectedCity) {
+    const citySelect = document.getElementById("city-select");
+    if (citySelect) {
+      citySelect.value = detectedCity;
+    }
   }
-}
 
-  // 1. 先判斷搜尋模式
   // 說「路邊、停車位、車格」→ 查路邊車格
   if (
     rawText.includes("路邊") ||
     rawText.includes("停車位") ||
+    rawText.includes("停車格") ||
     rawText.includes("車格")
   ) {
     mode = "onstreet";
   }
 
   // 說「停車場」→ 查路外停車場
-  // 放在後面，避免「停車場」被誤判成停車位
   if (rawText.includes("停車場")) {
     mode = "offstreet";
   }
 
-  // 2. 移除常見指令字，留下地點
   keyword = keyword
-      .replaceAll("台中市", "")
-.replaceAll("臺中市", "")
-.replaceAll("台中", "")
-.replaceAll("臺中", "")
-.replaceAll("台北市", "")
-.replaceAll("臺北市", "")
-.replaceAll("台北", "")
-.replaceAll("臺北", "")
-.replaceAll("高雄市", "")
-.replaceAll("高雄", "")
     .replaceAll("請幫我", "")
     .replaceAll("幫我", "")
     .replaceAll("我要", "")
@@ -641,17 +631,15 @@ if (detectedCity) {
     .replaceAll(",", "")
     .trim();
 
-  // 3. 如果沒有地點，代表使用者說的是「附近」
-  // 例如：查詢附近的停車場 / 搜尋附近的停車位
   if (!keyword) {
     keyword = "目前位置";
   }
 
-return {
-  keyword,
-  mode,
-  city: detectedCity
-};
+  return {
+    keyword,
+    mode,
+    city: detectedCity
+  };
 }
     function getCurrentLocation() {
   return new Promise((resolve, reject) => {
