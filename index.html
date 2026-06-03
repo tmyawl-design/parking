@@ -624,10 +624,17 @@ function renderMapView() {
     const value = Number(item.car_value);
     const isOnStreet = item.type === "onstreet";
 
-    let color = "#6b7280"; // 灰色：未知
-    if (!Number.isNaN(value)) {
-      color = value > 0 ? "#16a34a" : "#dc2626"; // 綠 / 紅
-    }
+let color = "#6b7280"; // 灰色：未知
+
+if (!Number.isNaN(value)) {
+  if (value <= 0) {
+    color = "#dc2626"; // 紅色：0 車位 / 已滿
+  } else if (isOnStreet) {
+    color = value <= 2 ? "#f59e0b" : "#16a34a";
+  } else {
+    color = value <= 10 ? "#f59e0b" : "#16a34a";
+  }
+}
 
     const label = isOnStreet ? "🛣️ 路邊車格" : "🅿️ 停車場";
     const title = item.name || "未命名停車點";
