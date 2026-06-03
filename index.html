@@ -327,7 +327,7 @@ const includeOnStreet =
   roadCheckboxChecked;
 
 const apiUrl =
-  `https://tdx-proxy.tmya-w-l.workers.dev/parking?city=${encodeURIComponent(city)}&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`
+  `https://tdx-proxy.tmya-w-l.workers.dev/parking?city=${encodeURIComponent(city)}&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`;
     
 console.log("查詢地點：", keyword);
 console.log("查詢座標：", lat, lon);
@@ -519,7 +519,13 @@ async function expandSearchTo3Km() {
   parkingList.innerHTML = `<div class="text-center text-gray-500 py-8">擴大搜尋中，請稍候...</div>`;
 
   try {
-    const coord = await getCoordinate(keyword);
+    let coord;
+
+    if (keyword === "目前位置") {
+      coord = await getCurrentLocation();
+    } else {
+      coord = await getCoordinate(keyword);
+    }
 
     if (!coord) {
       statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
@@ -529,7 +535,6 @@ async function expandSearchTo3Km() {
 
     await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
 
-}
   } catch (err) {
     statusText.textContent = "擴大搜尋失敗";
     parkingList.innerHTML = `
