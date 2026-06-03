@@ -274,11 +274,13 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const parkingList = document.getElementById("parking-list");
 
 const radiusKm = currentRadiusKm;
+const roadCheckboxChecked =
+  document.getElementById("show-road-parking")?.checked || false;
+
 const includeOnStreet =
   currentSearchMode === "onstreet" ||
   currentSearchMode === "mixed" ||
-  document.getElementById("show-road-parking")?.checked ||
-  false;
+  roadCheckboxChecked;
 
 const apiUrl =
   `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`;
@@ -306,12 +308,17 @@ const hideFullParking = document.getElementById("hide-full-parking")?.checked ||
 
 let modeFilteredList = list;
 
-if (currentSearchMode === "offstreet") {
-  modeFilteredList = list.filter(item => item.type !== "onstreet");
-}
-
+// 語音明確說「停車位 / 路邊 / 車格」時，只顯示路邊車格
 if (currentSearchMode === "onstreet") {
   modeFilteredList = list.filter(item => item.type === "onstreet");
+}
+// 勾選「包含路邊即時車格」時，顯示停車場 + 路邊車格
+else if (roadCheckboxChecked || currentSearchMode === "mixed") {
+  modeFilteredList = list;
+}
+// 一般搜尋預設只顯示停車場
+else {
+  modeFilteredList = list.filter(item => item.type !== "onstreet");
 }
 
 const displayList = hideFullParking
@@ -348,10 +355,10 @@ if (!Array.isArray(displayList) || displayList.length === 0) {
 const modeText =
   currentSearchMode === "onstreet"
     ? "路邊停車位"
-    : currentSearchMode === "mixed"
+    : roadCheckboxChecked || currentSearchMode === "mixed"
       ? "停車場與路邊車格"
       : "停車場";
-
+    
 statusText.textContent =
   hideFullParking
     ? `已找到「${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${modeFilteredList.length} 筆，隱藏 0 車位後顯示 ${displayList.length} 筆`
