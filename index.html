@@ -1,12 +1,26 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+    <link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>台中即時停車導航</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        #map-view {
+  height: 70vh;
+  min-height: 420px;
+  border-radius: 16px;
+  overflow: hidden;
+}
         @keyframes pulse {
             0%, 100% { transform: scale(1); opacity: 0.6; }
             50% { transform: scale(1.1); opacity: 1; }
@@ -112,9 +126,25 @@
             </div>
         </div>
 
-        <div class="space-y-3" id="parking-list">
-            <div class="text-center text-gray-500 py-8">請在上方輸入地點進行即時車位雷達搜尋 🔍</div>
-        </div>
+<div class="flex justify-center gap-2 mb-3">
+  <button id="list-view-btn"
+    onclick="switchToListView()"
+    class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm">
+    📋 清單模式
+  </button>
+
+  <button id="map-view-btn"
+    onclick="switchToMapView()"
+    class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium shadow-sm">
+    🗺️ 地圖模式
+  </button>
+</div>
+
+<div class="space-y-3" id="parking-list">
+  <div class="text-center text-gray-500 py-8">請在上方輸入地點進行即時車位雷達搜尋 🔍</div>
+</div>
+
+<div id="map-view" class="hidden bg-white shadow-sm border border-gray-200"></div>
     </main>
 
     <div class="fixed bottom-6 left-0 right-0 flex flex-col items-center justify-center z-50 pointer-events-none">
@@ -140,7 +170,12 @@ let currentSearchMode = "offstreet";
 // offstreet = 只查停車場
 // onstreet = 只查路邊車格
 // mixed = 停車場 + 路邊車格
-
+let currentViewMode = "list";
+let latestDisplayList = [];
+let latestSearchCenter = null;
+let parkingMap = null;
+let parkingMarkersLayer = null;
+    
 const LANDMARKS = {
   "逢甲夜市": { lat: 24.1790, lon: 120.6466 },
   "一中街": { lat: 24.1492, lon: 120.6841 },
@@ -368,7 +403,12 @@ else {
 const displayList = hideFullParking
   ? modeFilteredList.filter(item => Number(item.car_value) > 0)
   : modeFilteredList;
-    
+  latestDisplayList = displayList;
+latestSearchCenter = {
+  lat: Number(lat),
+  lon: Number(lon),
+  keyword
+};  
 
 if (!Array.isArray(displayList) || displayList.length === 0) {
   statusText.textContent = `「${keyword}」附近 ${radiusKm} 公里內查無 TDX 停車資料`;
@@ -500,6 +540,148 @@ ${statusBadge}
       </div>
     `;
   }).join("");
+    if (currentViewMode === "map") {
+  renderMapView();
+}
+}
+    function switchToListView() {
+  currentViewMode = "list";
+
+  document.getElementById("parking-list").classList.remove("hidden");
+  document.getElementById("map-view").classList.add("hidden");
+
+  document.getElementById("list-view-btn").className =
+    "bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm";
+  document.getElementById("map-view-btn").className =
+    "bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium shadow-sm";
+}
+
+function switchToMapView() {
+  currentViewMode = "map";
+
+  document.getElementById("parking-list").classList.add("hidden");
+  document.getElementById("map-view").classList.remove("hidden");
+
+  document.getElementById("list-view-btn").className =
+    "bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium shadow-sm";
+  document.getElementById("map-view-btn").className =
+    "bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm";
+
+  renderMapView();
+}
+
+function renderMapView() {
+  const mapEl = document.getElementById("map-view");
+
+  if (!latestSearchCenter) {
+    mapEl.innerHTML = `
+      <div class="text-center text-gray-500 py-8">
+        請先搜尋地點後再切換地圖模式。
+      </div>
+    `;
+    return;
+  }
+
+  if (!parkingMap) {
+    parkingMap = L.map("map-view").setView(
+      [latestSearchCenter.lat, latestSearchCenter.lon],
+      15
+    );
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(parkingMap);
+
+    parkingMarkersLayer = L.layerGroup().addTo(parkingMap);
+  }
+
+  setTimeout(() => {
+    parkingMap.invalidateSize();
+  }, 100);
+
+  parkingMarkersLayer.clearLayers();
+
+  const centerMarker = L.circleMarker(
+    [latestSearchCenter.lat, latestSearchCenter.lon],
+    {
+      radius: 8,
+      color: "#2563eb",
+      fillColor: "#2563eb",
+      fillOpacity: 0.9
+    }
+  ).bindPopup(`📍 搜尋中心：${latestSearchCenter.keyword}`);
+
+  centerMarker.addTo(parkingMarkersLayer);
+
+  const bounds = [
+    [latestSearchCenter.lat, latestSearchCenter.lon]
+  ];
+
+  latestDisplayList.forEach(item => {
+    if (!item.lat || !item.lon) return;
+
+    const value = Number(item.car_value);
+    const isOnStreet = item.type === "onstreet";
+
+    let color = "#6b7280"; // 灰色：未知
+    if (!Number.isNaN(value)) {
+      color = value > 0 ? "#16a34a" : "#dc2626"; // 綠 / 紅
+    }
+
+    const label = isOnStreet ? "🛣️ 路邊車格" : "🅿️ 停車場";
+    const title = item.name || "未命名停車點";
+    const address = item.address || "未提供地址";
+    const total = item.car_total ?? "未提供";
+    const available = item.car_value ?? "未提供";
+    const statusText = item.road_status_text || "";
+    const distance = item.distanceKm ?? "?";
+    const pay = item.pay_info || "未提供收費資訊";
+    const updateTime = item.update_time || "未提供";
+    const navUrl = `https://www.google.com/maps?q=${item.lat},${item.lon}`;
+
+    const marker = L.circleMarker([Number(item.lat), Number(item.lon)], {
+      radius: isOnStreet ? 6 : 8,
+      color,
+      fillColor: color,
+      fillOpacity: 0.85,
+      weight: 2
+    });
+
+    marker.bindPopup(`
+      <div style="min-width:220px;">
+        <div style="font-weight:700; font-size:15px; margin-bottom:4px;">
+          ${label} ${title}
+        </div>
+        <div style="font-size:13px; color:#4b5563; margin-bottom:6px;">
+          ${address}
+        </div>
+        <div style="font-size:13px; margin-bottom:4px;">
+          可用車位：<b>${available}</b> / 總格數：${total}
+        </div>
+        ${statusText ? `<div style="font-size:13px; margin-bottom:4px;">狀態：${statusText}</div>` : ""}
+        <div style="font-size:13px; margin-bottom:4px;">距離：約 ${distance} 公里</div>
+        <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">收費：${pay}</div>
+        <div style="font-size:12px; color:#6b7280; margin-bottom:8px;">更新：${updateTime}</div>
+        <a href="${navUrl}" target="_blank"
+          style="display:block; text-align:center; background:#2563eb; color:white; padding:6px 10px; border-radius:8px; text-decoration:none;">
+          開啟 Google 地圖導航
+        </a>
+      </div>
+    `);
+
+    marker.addTo(parkingMarkersLayer);
+    bounds.push([Number(item.lat), Number(item.lon)]);
+  });
+
+  if (bounds.length > 1) {
+    parkingMap.fitBounds(bounds, {
+      padding: [30, 30],
+      maxZoom: 17
+    });
+  } else {
+    parkingMap.setView([latestSearchCenter.lat, latestSearchCenter.lon], 15);
+  }
 }
 async function expandSearchTo3Km() {
   const keyword = lastSearchKeyword || document.getElementById("search-input").value.trim();
@@ -758,9 +940,11 @@ if (parsed.city) {
 
   recognition.start();
 }
-    window.doAdvancedSearch = doAdvancedSearch;
+window.doAdvancedSearch = doAdvancedSearch;
 window.expandSearchTo3Km = expandSearchTo3Km;
 window.toggleVoiceSearch = toggleVoiceSearch;
+window.switchToListView = switchToListView;
+window.switchToMapView = switchToMapView;
 </script>
 </body>
 </html>
