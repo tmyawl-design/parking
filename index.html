@@ -44,7 +44,37 @@
     </header>
 
     <main class="flex-1 p-4 pb-32 overflow-y-auto">
-        
+     <div class="bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
+  <div class="flex gap-2">
+    <select id="city-select" class="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+<option value="Taichung" selected>台中市</option>
+      <option value="Taipei">台北市</option>
+      <option value="NewTaipei">新北市</option>
+      <option value="Taoyuan">桃園市</option>
+      <option value="Hsinchu">新竹市</option>
+      <option value="HsinchuCounty">新竹縣</option>
+      <option value="MiaoliCounty">苗栗縣</option>
+      <option value="ChanghuaCounty">彰化縣</option>
+      <option value="NantouCounty">南投縣</option>
+      <option value="YunlinCounty">雲林縣</option>
+      <option value="Chiayi">嘉義市</option>
+      <option value="ChiayiCounty">嘉義縣</option>
+      <option value="Tainan">台南市</option>
+      <option value="Kaohsiung">高雄市</option>
+      <option value="PingtungCounty">屏東縣</option>
+      <option value="YilanCounty">宜蘭縣</option>
+      <option value="HualienCounty">花蓮縣</option>
+      <option value="TaitungCounty">台東縣</option>
+      <option value="Keelung">基隆市</option>
+      <option value="PenghuCounty">澎湖縣</option>
+      <option value="KinmenCounty">金門縣</option>
+      <option value="LienchiangCounty">連江縣</option>
+    </select>
+
+    <input type="text" id="city-keyword-input" placeholder="可不填；例如：台北、新北、高雄"
+      class="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+  </div>
+</div>   
         <div class="bg-white rounded-xl p-3 shadow-sm mb-4 border border-gray-200">
             <div class="flex gap-2">
                 <div class="relative flex-1">
@@ -217,16 +247,27 @@ async function doVoiceSearch(keyword) {
   }
 }
     
-async function getCoordinate(keyword) {
+function getSelectedCityText() {
+  const select = document.getElementById("city-select");
+  if (!select) return "台中市";
+
+  const selectedOption = select.options[select.selectedIndex];
+  return selectedOption?.textContent || "台中市";
+}
+    
+    async function getCoordinate(keyword) {
   // 先用內建台中常用地點，速度最快
 const cleanKeyword = keyword.trim();
 
 // 先完全比對
-if (LANDMARKS[cleanKeyword]) {
+const selectedCity = document.getElementById("city-select")?.value || "Taichung";
+
+if (selectedCity === "Taichung" && LANDMARKS[cleanKeyword]) {
   return LANDMARKS[cleanKeyword];
 }
 
 // 再做常用關鍵字模糊比對
+        if (selectedCity === "Taichung") {
 if (cleanKeyword.includes("中友")) {
   return { lat: 24.1520, lon: 120.6845 };
 }
@@ -246,10 +287,12 @@ if (cleanKeyword.includes("綠美圖")) {
 if (cleanKeyword.includes("勤美") || cleanKeyword.includes("草悟道")) {
   return { lat: 24.1510, lon: 120.6631 };
 }
-
+}
   // 如果不是內建地點，就用 OpenStreetMap 查座標
-  const url =
-    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(keyword + " 台中")}`;
+const cityText = getSelectedCityText();
+
+const url =
+  `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(keyword + " " + cityText + " 台灣")}`;
 
   const res = await fetch(url, {
     headers: {
@@ -274,6 +317,7 @@ async function searchParkingByCoordinate(lat, lon, keyword) {
   const parkingList = document.getElementById("parking-list");
 
 const radiusKm = currentRadiusKm;
+    const city = document.getElementById("city-select")?.value || "Taichung";
 const roadCheckboxChecked =
   document.getElementById("show-road-parking")?.checked || false;
 
@@ -283,8 +327,8 @@ const includeOnStreet =
   roadCheckboxChecked;
 
 const apiUrl =
-  `https://tdx-proxy.tmya-w-l.workers.dev/parking?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`;
-
+  `https://tdx-proxy.tmya-w-l.workers.dev/parking?city=${encodeURIComponent(city)}&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&radiusKm=${radiusKm}&includeOnStreet=${includeOnStreet}`
+    
 console.log("查詢地點：", keyword);
 console.log("查詢座標：", lat, lon);
 console.log("查詢半徑：", radiusKm);
@@ -359,10 +403,12 @@ const modeText =
       ? "停車場與路邊車格"
       : "停車場";
     
+const cityText = getSelectedCityText();
+
 statusText.textContent =
   hideFullParking
-    ? `已找到「${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${modeFilteredList.length} 筆，隱藏 0 車位後顯示 ${displayList.length} 筆`
-    : `已找到「${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${displayList.length} 筆`;
+    ? `已找到「${cityText} ${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${modeFilteredList.length} 筆，隱藏 0 車位後顯示 ${displayList.length} 筆`
+    : `已找到「${cityText} ${keyword}」附近 ${radiusKm} 公里內 ${modeText} ${displayList.length} 筆`;
 const expandButtonHtml = radiusKm < 3
   ? `
     <div class="bg-white rounded-xl p-3 shadow-sm text-center border border-gray-200 mb-3">
@@ -482,7 +528,9 @@ async function expandSearchTo3Km() {
     }
 
     await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
-
+if (includeOnStreet && city !== "Taichung") {
+  console.log("目前路邊即時車格只支援台中市，其他縣市僅顯示 TDX 停車場。");
+}
   } catch (err) {
     statusText.textContent = "擴大搜尋失敗";
     parkingList.innerHTML = `
