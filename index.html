@@ -72,7 +72,7 @@
 <div class="bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
   <div class="flex gap-2">
     <select id="city-select"
-      class="w-[82px] shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      class="w-[80px] shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       <option value="Taichung" selected>台中市</option>
       <option value="Taipei">台北市</option>
       <option value="NewTaipei">新北市</option>
@@ -130,7 +130,7 @@
 </div>
         
 <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-<span>📍 顯示 1.5 公里內停車場；搜尋後可一鍵擴大至 3 公里</span>
+<span>📍 預設顯示 1.5 公里內停車場</span>
 </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
@@ -177,7 +177,7 @@
         <p class="mb-2">本專案為個人學術研究與前端開發作品集，嚴禁任何未經授權之商業轉售與營利行為。</p>
         <p class="text-gray-400/80">
             💡 <span class="font-medium">免責聲明：</span>本網頁僅供個人技術練習使用，不作任何商業盈利用途。
-            資料來源為TDX 運輸資料流通服務&台中市即時交通網之公開傳輸內容，即時車位資訊及費率請以現場實際公告為準。
+            資料來源為TDX 運輸資料流通服務 & 台中市即時交通網之公開傳輸內容，即時車位資訊及費率請以現場實際公告為準。
         </p>
     </footer>
     
@@ -587,7 +587,7 @@ ${statusBadge}
           <div><i class="fa-solid fa-route mr-1"></i> 距離：約 ${distance} 公里</div>
           <div><i class="fa-solid fa-coins mr-1"></i> 收費：${pay}</div>
           <div><i class="fa-regular fa-clock mr-1"></i> 更新時間：${time}</div>
-          <div class="text-xs text-gray-350 mt-1">資料來源：${source}，實際車位與費率請以現場公告為準</div>
+          <div class="text-xs text-gray-300 mt-1">資料來源：${source}，實際車位與費率請以現場公告為準</div>
         </div>
 
         <a href="${mapUrl}" target="_blank"
