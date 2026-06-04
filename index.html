@@ -72,7 +72,7 @@
 <div class="bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
   <div class="flex gap-2">
     <select id="city-select"
-      class="w-[88px] shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      class="w-[82px] shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
       <option value="Taichung" selected>台中市</option>
       <option value="Taipei">台北市</option>
       <option value="NewTaipei">新北市</option>
@@ -112,7 +112,7 @@
       <label class="cursor-pointer flex items-center gap-2 select-none">
         <input type="checkbox" id="show-road-parking"
           class="w-4 h-4 cursor-pointer">
-        <span>🔍 包含路邊即時車格</span>
+        <span>🔍 包含路邊即時車格(台中限定)</span>
       </label>
 
       <label class="cursor-pointer flex items-center gap-2 select-none">
@@ -130,7 +130,7 @@
 </div>
         
 <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-<span>📍 預設顯示 1.5 公里內停車場；若查無資料，可一鍵擴大至 3 公里</span>
+<span>📍 顯示 1.5 公里內停車場；搜尋後可一鍵擴大至 3 公里</span>
 </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
@@ -587,7 +587,7 @@ ${statusBadge}
           <div><i class="fa-solid fa-route mr-1"></i> 距離：約 ${distance} 公里</div>
           <div><i class="fa-solid fa-coins mr-1"></i> 收費：${pay}</div>
           <div><i class="fa-regular fa-clock mr-1"></i> 更新時間：${time}</div>
-          <div class="text-xs text-gray-400 mt-1">資料來源：${source}，實際車位與費率請以現場公告為準</div>
+          <div class="text-xs text-gray-350 mt-1">資料來源：${source}，實際車位與費率請以現場公告為準</div>
         </div>
 
         <a href="${mapUrl}" target="_blank"
