@@ -9,41 +9,52 @@
 <script
   src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
 </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全國即時停車導航</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        #map-view {
-  height: 70vh;
-  min-height: 420px;
-  border-radius: 16px;
-  overflow: hidden;
-}
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.6; }
-            50% { transform: scale(1.1); opacity: 1; }
-        }
-        .recording-active {
-            animation: pulse 1.5s infinite;
-            background-color: #ef4444 !important; /* 錄音中變成紅色閃爍 */
-        }
-        /* 補上 Loading 旋轉動畫 */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #2563eb;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-    </style>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全國即時停車導航</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    #map-view {
+      height: 70vh;
+      min-height: 420px;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.1); opacity: 1; }
+    }
+
+    .recording-active {
+      animation: pulse 1.5s infinite;
+      background-color: #ef4444 !important;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: #2563eb;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+  </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
 
@@ -58,10 +69,11 @@
     </header>
 
     <main class="flex-1 p-4 pb-32 overflow-y-auto">
-     <div class="bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
+<div class="bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
   <div class="flex gap-2">
-    <select id="city-select" class="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-<option value="Taichung" selected>台中市</option>
+    <select id="city-select"
+      class="w-[105px] shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <option value="Taichung" selected>台中市</option>
       <option value="Taipei">台北市</option>
       <option value="NewTaipei">新北市</option>
       <option value="Taoyuan">桃園市</option>
@@ -85,31 +97,36 @@
       <option value="LienchiangCounty">連江縣</option>
     </select>
 
-   </div>
-</div>   
-        <div class="bg-white rounded-xl p-3 shadow-sm mb-4 border border-gray-200">
-           <div class="flex">
-                <div class="relative flex-1">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
-                    <input type="text" id="search-input" placeholder="輸入地點，例如：101、夢時代、一中街、馬卡龍公園..." class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
-                </div>
-                <button onclick="doAdvancedSearch()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm">
-                    搜尋
-                </button>
-            </div>
-        </div>
+    <div class="relative flex-1">
+      <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-gray-400 text-sm"></i>
+      <input type="text" id="search-input"
+        placeholder="輸入地點，如：101、夢時代、一中街"
+        class="w-full bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white">
+    </div>
+  </div>
+</div>
         
-        <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
-                <input type="checkbox" id="show-road-parking" style="width: 16px; height: 16px; cursor: pointer;">
-                <span>🔍 包含顯示「路邊即時車格」</span>
-            </label>
-        </div>
-<div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
-  <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
-    <input type="checkbox" id="hide-full-parking" style="width: 16px; height: 16px; cursor: pointer;">
-    <span>🚗 隱藏 0 車位／已滿停車場</span>
-  </label>
+  <div class="bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex-1 space-y-2 text-sm text-gray-600">
+      <label class="cursor-pointer flex items-center gap-2 select-none">
+        <input type="checkbox" id="show-road-parking"
+          class="w-4 h-4 cursor-pointer">
+        <span>🔍 包含路邊即時車格</span>
+      </label>
+
+      <label class="cursor-pointer flex items-center gap-2 select-none">
+        <input type="checkbox" id="hide-full-parking"
+          class="w-4 h-4 cursor-pointer">
+        <span>🚗 隱藏 0 車位／已滿</span>
+      </label>
+    </div>
+
+    <button onclick="doAdvancedSearch()"
+      class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg text-sm font-bold shadow-sm">
+      搜尋
+    </button>
+  </div>
 </div>
         
 <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
@@ -117,9 +134,10 @@
 </div>
 
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
-           <p id="status-text" class="text-gray-600 font-medium">
-  請先選擇縣市，再輸入地點；例如：台北 101、高雄夢時代、台中一中街，也可以按下方語音搜尋。
-</p><!-- 💡 新增：用來顯示轉圈圈的容器 -->
+        <p id="status-text" class="text-gray-600 font-medium">
+  請選擇縣市並輸入地點，或使用語音搜尋。
+</p>
+            <!-- 💡 新增：用來顯示轉圈圈的容器 -->
             <div id="loading-spinner" class="hidden mt-3 text-center">
                 <div class="spinner"></div>
             </div>
@@ -142,7 +160,7 @@
 </div>
 
 <div class="space-y-3" id="parking-list">
-  <div class="text-center text-gray-500 py-8">請在上方輸入地點進行即時車位雷達搜尋 🔍</div>
+
 </div>
 
 <div id="map-view" class="hidden bg-white shadow-sm border border-gray-200"></div>
