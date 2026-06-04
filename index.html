@@ -485,9 +485,18 @@ const type = item.type || "offstreet";
 const isOnStreet = type === "onstreet";
 const valueTitle = isOnStreet ? "路段可停格數" : "汽車剩餘車位";
 
-const totalTitle = isOnStreet
-  ? `總格數 ${total}${item.road_status_text ? `｜${item.road_status_text}` : ""}`
-  : `總汽車格 ${total}`;
+const valueTitle = isOnStreet ? "路段可停格數" : "汽車剩餘車位";
+
+let totalTitle = "";
+
+if (isOnStreet) {
+  totalTitle = "總格數 " + total;
+  if (item.road_status_text) {
+    totalTitle += "｜" + item.road_status_text;
+  }
+} else {
+  totalTitle = "總汽車格 " + total;
+}
 
 const typeBadge =
   isOnStreet
