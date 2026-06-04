@@ -403,7 +403,17 @@ else {
 }
 
 const displayList = hideFullParking
-  ? modeFilteredList.filter(item => Number(item.car_value) > 0)
+  ? modeFilteredList.filter(item => {
+      const value = Number(item.car_value);
+
+      // 未知資料保留，不要被「隱藏 0 車位」濾掉
+      if (item.car_value === null || item.car_value === undefined || item.car_value === "未提供" || Number.isNaN(value)) {
+        return true;
+      }
+
+      // 只隱藏明確等於 0 或小於 0 的資料
+      return value > 0;
+    })
   : modeFilteredList;
   latestDisplayList = displayList;
 latestSearchCenter = {
@@ -473,8 +483,11 @@ const source = item.source || "TDX";
 const type = item.type || "offstreet";
 
 const isOnStreet = type === "onstreet";
-const valueTitle = isOnStreet ? "路邊車格狀態" : "汽車剩餘車位";
-const totalTitle = isOnStreet ? (item.road_status_text || "狀態未知") : `總汽車格 ${total}`;
+const valueTitle = isOnStreet ? "路段可停格數" : "汽車剩餘車位";
+
+const totalTitle = isOnStreet
+  ? `總格數 ${total}${item.road_status_text ? `｜${item.road_status_text}` : ""}`
+  : `總汽車格 ${total}`;
 
 const typeBadge =
   isOnStreet
@@ -628,14 +641,21 @@ function renderMapView() {
 
 let color = "#6b7280"; // 灰色：未知
 
-if (!Number.isNaN(value)) {
-  if (value <= 0) {
-    color = "#dc2626"; // 紅色：0 車位 / 已滿
-  } else if (isOnStreet) {
-    color = value <= 2 ? "#f59e0b" : "#16a34a";
-  } else {
-    color = value <= 10 ? "#f59e0b" : "#16a34a";
-  }
+if (
+  item.car_value === null ||
+  item.car_value === undefined ||
+  item.car_value === "未提供" ||
+  Number.isNaN(value) ||
+  value < 0
+) {
+  color = "#6b7280"; // 灰色：未知 / 特殊代碼
+} else if (value === 0) {
+  color = "#dc2626"; // 紅色：0 車位 / 已滿
+} else if (isOnStreet) {
+  color = value <= 2 ? "#f59e0b" : "#16a34a"; // 路邊：1-2 黃，3+ 綠
+} else {
+  color = value <= 10 ? "#f59e0b" : "#16a34a"; // 停車場：1-10 黃，11+ 綠
+}
 }
 
     const label = isOnStreet ? "🛣️ 路邊車格" : "🅿️ 停車場";
