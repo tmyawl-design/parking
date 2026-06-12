@@ -272,13 +272,23 @@ async function doVoiceSearch(keyword) {
   try {
     let coord;
 
-    if (keyword === "目前位置") {
-      coord = await getCurrentLocation();
-      lastSearchKeyword = "目前位置";
-    } else {
-      coord = await getCoordinate(keyword);
-      lastSearchKeyword = keyword;
+if (keyword === "目前位置") {
+  coord = await getCurrentLocation();
+  lastSearchKeyword = "目前位置";
+
+  const detectedCity = await detectCityByCoordinate(coord.lat, coord.lon);
+
+  if (detectedCity) {
+    const citySelect = document.getElementById("city-select");
+    if (citySelect) {
+      citySelect.value = detectedCity;
     }
+  }
+
+} else {
+  coord = await getCoordinate(keyword);
+  lastSearchKeyword = keyword;
+}
 
     if (!coord) {
       statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
@@ -786,11 +796,21 @@ async function expandSearchTo3Km() {
   try {
     let coord;
 
-    if (keyword === "目前位置") {
-      coord = await getCurrentLocation();
-    } else {
-      coord = await getCoordinate(keyword);
+if (keyword === "目前位置") {
+  coord = await getCurrentLocation();
+
+  const detectedCity = await detectCityByCoordinate(coord.lat, coord.lon);
+
+  if (detectedCity) {
+    const citySelect = document.getElementById("city-select");
+    if (citySelect) {
+      citySelect.value = detectedCity;
     }
+  }
+
+} else {
+  coord = await getCoordinate(keyword);
+}
 
     if (!coord) {
       statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
@@ -905,6 +925,64 @@ function parseVoiceCommand(text) {
     mode,
     city: detectedCity
   };
+}
+
+    async function detectCityByCoordinate(lat, lon) {
+  try {
+    const reverseUrl =
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1`;
+
+    const res = await fetch(reverseUrl, {
+      headers: {
+        "Accept": "application/json"
+      }
+    });
+
+    const data = await res.json();
+    const address = data.address || {};
+
+    const countyText =
+      address.city ||
+      address.county ||
+      address.state ||
+      address.region ||
+      "";
+
+    const cityMap = [
+      { keys: ["台北", "臺北"], value: "Taipei" },
+      { keys: ["新北"], value: "NewTaipei" },
+      { keys: ["桃園"], value: "Taoyuan" },
+      { keys: ["新竹市"], value: "Hsinchu" },
+      { keys: ["新竹縣"], value: "HsinchuCounty" },
+      { keys: ["苗栗"], value: "MiaoliCounty" },
+      { keys: ["台中", "臺中"], value: "Taichung" },
+      { keys: ["彰化"], value: "ChanghuaCounty" },
+      { keys: ["南投"], value: "NantouCounty" },
+      { keys: ["雲林"], value: "YunlinCounty" },
+      { keys: ["嘉義市"], value: "Chiayi" },
+      { keys: ["嘉義縣"], value: "ChiayiCounty" },
+      { keys: ["台南", "臺南"], value: "Tainan" },
+      { keys: ["高雄"], value: "Kaohsiung" },
+      { keys: ["屏東"], value: "PingtungCounty" },
+      { keys: ["宜蘭"], value: "YilanCounty" },
+      { keys: ["花蓮"], value: "HualienCounty" },
+      { keys: ["台東", "臺東"], value: "TaitungCounty" },
+      { keys: ["基隆"], value: "Keelung" },
+      { keys: ["澎湖"], value: "PenghuCounty" },
+      { keys: ["金門"], value: "KinmenCounty" },
+      { keys: ["連江", "馬祖"], value: "LienchiangCounty" }
+    ];
+
+    const matched = cityMap.find(city =>
+      city.keys.some(key => countyText.includes(key))
+    );
+
+    return matched ? matched.value : null;
+
+  } catch (err) {
+    console.warn("反查縣市失敗：", err);
+    return null;
+  }
 }
     function getCurrentLocation() {
   return new Promise((resolve, reject) => {
