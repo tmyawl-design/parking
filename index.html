@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
-<script
-  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-</script>
-<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>全國即時停車導航</title>
@@ -132,7 +123,10 @@
 <div style="margin: 10px 0; text-align: center; font-size: 0.95em; color: #4b5563;">
 <span>📍 預設顯示 1.5 公里內停車場</span>
 </div>
-
+<div id="recent-search-box" class="hidden bg-white rounded-xl p-3 shadow-sm mb-3 border border-gray-200">
+  <div class="text-sm font-bold text-gray-700 mb-2">最近搜尋</div>
+  <div id="recent-search-list" class="flex flex-wrap gap-2"></div>
+</div>
         <div id="status-box" class="bg-white rounded-xl p-4 shadow-sm mb-4 text-center border-l-4 border-blue-500">
         <p id="status-text" class="text-gray-600 font-medium">
   請選擇縣市並輸入地點，或使用語音搜尋。
@@ -239,8 +233,10 @@ async function doAdvancedSearch() {
       return;
     }
 
-    await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
+await updateCityByCoordinate(coord.lat, coord.lon);
+saveRecentSearch(keyword);
 
+await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
   } catch (err) {
     statusText.textContent = "查詢失敗";
     parkingList.innerHTML = `
@@ -296,7 +292,10 @@ if (keyword === "目前位置") {
       return;
     }
 
-    await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
+await updateCityByCoordinate(coord.lat, coord.lon);
+saveRecentSearch(keyword);
+
+await searchParkingByCoordinate(coord.lat, coord.lon, keyword);
 
   } catch (err) {
     statusText.textContent = "語音搜尋失敗";
@@ -309,7 +308,70 @@ if (keyword === "目前位置") {
     spinner.classList.add("hidden");
   }
 }
-    
+    function getRecentSearches() {
+  try {
+    const raw = localStorage.getItem("recentParkingSearches");
+    const list = raw ? JSON.parse(raw) : [];
+
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentSearch(keyword) {
+  const cleanKeyword = String(keyword || "").trim();
+
+  if (!cleanKeyword || cleanKeyword === "目前位置") {
+    return;
+  }
+
+  const oldList = getRecentSearches();
+
+  const newList = [
+    cleanKeyword,
+    ...oldList.filter(item => item !== cleanKeyword)
+  ].slice(0, 5);
+
+  localStorage.setItem("recentParkingSearches", JSON.stringify(newList));
+  renderRecentSearches();
+}
+
+function renderRecentSearches() {
+  const box = document.getElementById("recent-search-box");
+  const listEl = document.getElementById("recent-search-list");
+
+  if (!box || !listEl) return;
+
+  const list = getRecentSearches();
+
+  if (!list.length) {
+    box.classList.add("hidden");
+    listEl.innerHTML = "";
+    return;
+  }
+
+  box.classList.remove("hidden");
+
+  listEl.innerHTML = list.map(keyword => `
+    <button
+      type="button"
+      onclick="searchRecentKeyword('${keyword.replaceAll("'", "\\'")}')"
+      class="bg-gray-100 hover:bg-blue-100 text-gray-700 px-3 py-1.5 rounded-full text-sm border border-gray-200">
+      ${keyword}
+    </button>
+  `).join("");
+}
+
+function searchRecentKeyword(keyword) {
+  const input = document.getElementById("search-input");
+
+  if (input) {
+    input.value = keyword;
+  }
+
+  doAdvancedSearch();
+}
 function getSelectedCityText() {
   const select = document.getElementById("city-select");
   if (!select) return "台中市";
@@ -519,27 +581,26 @@ latestSearchCenter = {
 };  
 
 if (!Array.isArray(displayList) || displayList.length === 0) {
-  statusText.textContent = `「${keyword}」附近 ${radiusKm} 公里內查無 TDX 停車資料`;
-
   if (radiusKm < 3) {
-    parkingList.innerHTML = `
-      <div class="bg-white rounded-xl p-5 shadow-sm text-center border border-gray-200">
-        <div class="text-gray-600 mb-3">
-          1.5 公里內查無停車場資料。
-        </div>
-        <button onclick="expandSearchTo3Km()"
-          class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm">
-          擴大搜尋至 3 公里
-        </button>
-      </div>
-    `;
-  } else {
+    currentRadiusKm = 3;
+
+    statusText.textContent = `「${keyword}」附近 1.5 公里內查無資料，正在自動擴大搜尋至 3 公里...`;
     parkingList.innerHTML = `
       <div class="text-center text-gray-500 py-8">
-        3 公里內仍查無附近停車場資料，請換一個地點搜尋。
+        1.5 公里內查無停車場資料，正在自動擴大搜尋至 3 公里...
       </div>
     `;
+
+    await searchParkingByCoordinate(lat, lon, keyword);
+    return;
   }
+
+  statusText.textContent = `「${keyword}」附近 3 公里內仍查無 TDX 停車資料`;
+  parkingList.innerHTML = `
+    <div class="text-center text-gray-500 py-8">
+      3 公里內仍查無附近停車場資料，請換一個地點搜尋。
+    </div>
+  `;
 
   return;
 }
@@ -1050,6 +1111,20 @@ function parseVoiceCommand(text) {
     return null;
   }
 }
+    async function updateCityByCoordinate(lat, lon) {
+  const detectedCity = await detectCityByCoordinate(lat, lon);
+
+  if (detectedCity) {
+    const citySelect = document.getElementById("city-select");
+
+    if (citySelect && citySelect.value !== detectedCity) {
+      citySelect.value = detectedCity;
+      console.log("已依座標自動切換縣市：", detectedCity);
+    }
+  }
+
+  return detectedCity;
+}
     function getCurrentLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -1162,11 +1237,15 @@ if (parsed.city) {
 
   recognition.start();
 }
+
+    renderRecentSearches();
+    
 window.doAdvancedSearch = doAdvancedSearch;
 window.expandSearchTo3Km = expandSearchTo3Km;
 window.toggleVoiceSearch = toggleVoiceSearch;
 window.switchToListView = switchToListView;
 window.switchToMapView = switchToMapView;
+window.searchRecentKeyword = searchRecentKeyword;
 </script>
 </body>
 </html>
