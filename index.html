@@ -365,9 +365,9 @@ const url =
 
   const data = await res.json();
 
-  if (!Array.isArray(data) || data.length === 0) {
-    return null;
-  }
+if (!Array.isArray(data) || data.length === 0) {
+  return await getGoogleCoordinate(keyword);
+}
 
   return {
     lat: data[0].lat,
@@ -812,6 +812,27 @@ if (keyword === "目前位置") {
   coord = await getCoordinate(keyword);
 }
 
+async function getGoogleCoordinate(keyword) {
+  const cityText = getSelectedCityText();
+
+  const apiUrl =
+    `https://tdx-proxy.tmya-w-l.workers.dev/geocode-google?keyword=${encodeURIComponent(keyword)}&cityText=${encodeURIComponent(cityText)}`;
+
+  const res = await fetch(apiUrl);
+  const data = await res.json();
+
+  if (!res.ok || !data.lat || !data.lon) {
+    console.warn("Google Geocoding fallback 也找不到：", data);
+    return null;
+  }
+
+  return {
+    lat: data.lat,
+    lon: data.lon
+  };
+}
+
+      
     if (!coord) {
       statusText.textContent = `找不到「${keyword}」的座標，請換一個較明確的地名。`;
       parkingList.innerHTML = `<div class="text-center text-red-500 py-8">找不到地點座標</div>`;
