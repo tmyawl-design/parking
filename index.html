@@ -204,7 +204,33 @@ const LANDMARKS = {
 "一中商圈": { lat: 24.1492, lon: 120.6841 },
 "一中": { lat: 24.1492, lon: 120.6841 },
 };
-
+const NATIONAL_LANDMARKS = {
+  "夢時代": {
+    lat: 22.595153,
+    lon: 120.306923,
+    city: "Kaohsiung"
+  },
+  "統一夢時代": {
+    lat: 22.595153,
+    lon: 120.306923,
+    city: "Kaohsiung"
+  },
+  "高雄夢時代": {
+    lat: 22.595153,
+    lon: 120.306923,
+    city: "Kaohsiung"
+  },
+  "大雪山": {
+    lat: 24.2706,
+    lon: 120.9833,
+    city: "Taichung"
+  },
+  "大雪山森林遊樂區": {
+    lat: 24.2706,
+    lon: 120.9833,
+    city: "Taichung"
+  }
+};
 async function doAdvancedSearch() {
   const keyword = document.getElementById("search-input").value.trim();
   const statusText = document.getElementById("status-text");
@@ -386,7 +412,41 @@ const cleanKeyword = keyword.trim();
 
 // 先完全比對
 const selectedCity = document.getElementById("city-select")?.value || "Taichung";
+const citySelect = document.getElementById("city-select");
 
+// 全國知名地標優先，不被目前下拉縣市拖偏
+if (NATIONAL_LANDMARKS[cleanKeyword]) {
+  const item = NATIONAL_LANDMARKS[cleanKeyword];
+
+  if (citySelect && item.city) {
+    citySelect.value = item.city;
+  }
+
+  return {
+    lat: item.lat,
+    lon: item.lon
+  };
+}
+
+// 全國知名地標模糊比對
+const nationalKey = Object.keys(NATIONAL_LANDMARKS).find(key =>
+  cleanKeyword.includes(key)
+);
+
+if (nationalKey) {
+  const item = NATIONAL_LANDMARKS[nationalKey];
+
+  if (citySelect && item.city) {
+    citySelect.value = item.city;
+  }
+
+  return {
+    lat: item.lat,
+    lon: item.lon
+  };
+}
+
+// 台中常用地點
 if (selectedCity === "Taichung" && LANDMARKS[cleanKeyword]) {
   return LANDMARKS[cleanKeyword];
 }
