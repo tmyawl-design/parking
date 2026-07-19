@@ -374,7 +374,38 @@ if (!Array.isArray(data) || data.length === 0) {
     lon: data[0].lon
   };
 }
+async function getGoogleCoordinate(keyword) {
+  const statusText = document.getElementById("status-text");
+  const cityText = getSelectedCityText();
 
+  if (statusText) {
+    statusText.textContent = `免費地圖找不到「${keyword}」，正在改用 Google 定位查詢...`;
+  }
+
+  const apiUrl =
+    `https://tdx-proxy.tmya-w-l.workers.dev/geocode-google?keyword=${encodeURIComponent(keyword)}&cityText=${encodeURIComponent(cityText)}`;
+
+  try {
+    const res = await fetch(apiUrl);
+    const data = await res.json();
+
+    console.log("Google Geocoding fallback 回傳：", data);
+
+    if (!res.ok || !data.lat || !data.lon) {
+      console.warn("Google Geocoding fallback 也找不到：", data);
+      return null;
+    }
+
+    return {
+      lat: data.lat,
+      lon: data.lon
+    };
+
+  } catch (err) {
+    console.warn("Google Geocoding fallback 發生錯誤：", err);
+    return null;
+  }
+}
 async function searchParkingByCoordinate(lat, lon, keyword) {
   const statusText = document.getElementById("status-text");
   const parkingList = document.getElementById("parking-list");
@@ -812,25 +843,6 @@ if (keyword === "目前位置") {
   coord = await getCoordinate(keyword);
 }
 
-async function getGoogleCoordinate(keyword) {
-  const cityText = getSelectedCityText();
-
-  const apiUrl =
-    `https://tdx-proxy.tmya-w-l.workers.dev/geocode-google?keyword=${encodeURIComponent(keyword)}&cityText=${encodeURIComponent(cityText)}`;
-
-  const res = await fetch(apiUrl);
-  const data = await res.json();
-
-  if (!res.ok || !data.lat || !data.lon) {
-    console.warn("Google Geocoding fallback 也找不到：", data);
-    return null;
-  }
-
-  return {
-    lat: data.lat,
-    lon: data.lon
-  };
-}
 
       
     if (!coord) {
